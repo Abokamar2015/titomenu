@@ -76,6 +76,14 @@ export async function toggleItemAvailability(id: string, is_available: boolean):
   if (error) throw error;
 }
 
+export async function updateSortOrders(updates: { id: string; sort_order: number }[]): Promise<void> {
+  await Promise.all(
+    updates.map(({ id, sort_order }) =>
+      supabase.from('menu_items').update({ sort_order }).eq('id', id)
+    )
+  );
+}
+
 // ===== THEME SETTINGS =====
 export interface ThemeSettings {
   bg_color: string;

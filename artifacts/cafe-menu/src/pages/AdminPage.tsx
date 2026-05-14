@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import {
   Plus, Pencil, Trash2, LogOut, QrCode,
   Download, Coffee, Search, Save, Loader2, Palette, UtensilsCrossed,
-  ImagePlus, X as XIcon, Tag
+  ImagePlus, X as XIcon, Tag, GripVertical, ArrowUpDown
 } from 'lucide-react';
 import {
   fetchMenuItems, createMenuItem, updateMenuItem,
@@ -12,6 +12,7 @@ import {
   fetchThemeSettings, saveThemeSetting,
   uploadMenuImage, deleteMenuImage,
   fetchCategories, createCategory, updateCategory, deleteCategory, uploadCategoryImage,
+  updateSortOrders,
 } from '@/lib/supabase';
 import type { MenuItem, MenuItemInsert, ThemeSettings, Category } from '@/lib/supabase';
 import { ADMIN_PASSWORD } from '@/lib/constants';
@@ -557,6 +558,10 @@ export default function AdminPage() {
   const [qrOpen, setQrOpen] = useState(false);
   const [catFormOpen, setCatFormOpen] = useState(false);
   const [catEdit, setCatEdit] = useState<Category | null>(null);
+  const [sortMode, setSortMode] = useState(false);
+  const [savingOrder, setSavingOrder] = useState(false);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -581,6 +586,37 @@ export default function AdminPage() {
   const stats = {
     total: items.length,
     available: items.filter(i => i.is_available).length,
+  };
+
+  const handleDragStart = (id: string) => setDraggedId(id);
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    if (id !== draggedId) setDragOverId(id);
+  };
+  const handleDrop = (targetId: string) => {
+    if (!draggedId || draggedId === targetId) { setDraggedId(null); setDragOverId(null); return; }
+    setItems(prev => {
+      const list = [...prev];
+      const fromIdx = list.findIndex(i => i.id === draggedId);
+      const toIdx = list.findIndex(i => i.id === targetId);
+      const [moved] = list.splice(fromIdx, 1);
+      list.splice(toIdx, 0, moved);
+      return list;
+    });
+    setDraggedId(null);
+    setDragOverId(null);
+  };
+
+  const handleSaveOrder = async () => {
+    setSavingOrder(true);
+    try {
+      const catItems = activeCategory === 'all' ? items : items.filter(i => i.category === activeCategory);
+      const updates = catItems.map((item, idx) => ({ id: item.id, sort_order: idx + 1 }));
+      await updateSortOrders(updates);
+      toast.success('تم حفظ الترتيب ✓');
+      setSortMode(false);
+    } catch { toast.error('فشل حفظ الترتيب'); }
+    finally { setSavingOrder(false); }
   };
 
   const handleToggle = async (item: MenuItem) => {
@@ -663,19 +699,44 @@ export default function AdminPage() {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative flex-1">
-                <Search className="absolute end-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input placeholder="بحث بالاسم..." value={search} onChange={e => setSearch(e.target.value)} className="pe-9" />
-              </div>
-              <div className="flex gap-2 flex-wrap">
+              {!sortMode && (
+                <div className="relative flex-1">
+                  <Search className="absolute end-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input placeholder="بحث بالاسم..." value={search} onChange={e => setSearch(e.target.value)} className="pe-9" />
+                </div>
+              )}
+              <div className="flex gap-2 flex-wrap items-center">
                 {[{ key: 'all', icon: '', name_ar: 'الكل' }, ...categories].map(cat => (
                   <button key={cat.key} onClick={() => setActiveCategory(cat.key)}
                     className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${activeCategory === cat.key ? 'bg-primary/10 text-primary border-primary' : 'bg-card text-muted-foreground border-border hover:border-primary hover:text-primary'}`}>
                     {cat.key === 'all' ? 'الكل' : (cat as Category).icon + ' ' + cat.name_ar}
                   </button>
                 ))}
+                <div className="h-5 w-px bg-border mx-1" />
+                {sortMode ? (
+                  <>
+                    <Button size="sm" onClick={handleSaveOrder} disabled={savingOrder} className="bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5 text-xs">
+                      {savingOrder ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                      حفظ الترتيب
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setSortMode(false); load(); }} className="text-muted-foreground text-xs">
+                      إلغاء
+                    </Button>
+                  </>
+                ) : (
+                  <Button size="sm" variant="outline" onClick={() => setSortMode(true)} className="border-border text-muted-foreground hover:text-foreground gap-1.5 text-xs">
+                    <ArrowUpDown className="w-3.5 h-3.5" />
+                    ترتيب الأصناف
+                  </Button>
+                )}
               </div>
             </div>
+            {sortMode && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground bg-primary/5 border border-primary/20 rounded-xl px-4 py-2.5">
+                <GripVertical className="w-4 h-4 text-primary shrink-0" />
+                <span>اسحب الأصناف لتغيير ترتيبها، ثم اضغط <strong className="text-primary">حفظ الترتيب</strong></span>
+              </div>
+            )}
 
             {loading ? (
               <div className="space-y-3">{[...Array(6)].map((_, i) => <div key={i} className="h-16 rounded-xl bg-muted animate-pulse" />)}</div>
@@ -685,47 +746,61 @@ export default function AdminPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border bg-muted/40">
+                        {sortMode && <th className="py-3 px-2 w-8" />}
                         <th className="text-end py-3 px-4 font-semibold text-muted-foreground">الصنف</th>
-                        <th className="text-end py-3 px-4 font-semibold text-muted-foreground">الفئة</th>
+                        {!sortMode && <th className="text-end py-3 px-4 font-semibold text-muted-foreground">الفئة</th>}
                         <th className="text-end py-3 px-4 font-semibold text-muted-foreground">السعر</th>
-                        <th className="text-end py-3 px-4 font-semibold text-muted-foreground">السعرات</th>
-                        <th className="text-center py-3 px-4 font-semibold text-muted-foreground">الحالة</th>
-                        <th className="text-center py-3 px-4 font-semibold text-muted-foreground">إجراءات</th>
+                        {!sortMode && <th className="text-end py-3 px-4 font-semibold text-muted-foreground">السعرات</th>}
+                        {!sortMode && <th className="text-center py-3 px-4 font-semibold text-muted-foreground">الحالة</th>}
+                        {!sortMode && <th className="text-center py-3 px-4 font-semibold text-muted-foreground">إجراءات</th>}
                       </tr>
                     </thead>
                     <tbody>
-                      <AnimatePresence>
-                        {filtered.length === 0 && (
-                          <tr><td colSpan={6} className="py-12 text-center text-muted-foreground"><Coffee className="w-8 h-8 mx-auto mb-2 opacity-40" /><p>لا توجد أصناف</p></td></tr>
-                        )}
-                        {filtered.map(item => {
-                          const cat = categories.find(c => c.key === item.category);
-                          return (
-                            <motion.tr key={item.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={springPresets.snappy}
-                              className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-                              <td className="py-3 px-4">
-                                <div className="flex items-center gap-2">
-                                  {item.image_url && <img src={item.image_url} alt={item.name_ar} className="w-8 h-8 rounded-lg object-cover border border-border" />}
-                                  <div>
-                                    <div className="font-semibold text-foreground">{item.name_ar}</div>
-                                    <div className="text-xs text-muted-foreground">{item.name_en}</div>
-                                  </div>
-                                </div>
+                      {filtered.length === 0 && (
+                        <tr><td colSpan={6} className="py-12 text-center text-muted-foreground"><Coffee className="w-8 h-8 mx-auto mb-2 opacity-40" /><p>لا توجد أصناف</p></td></tr>
+                      )}
+                      {filtered.map(item => {
+                        const cat = categories.find(c => c.key === item.category);
+                        const isDragging = draggedId === item.id;
+                        const isDragOver = dragOverId === item.id;
+                        return (
+                          <tr key={item.id}
+                            draggable={sortMode}
+                            onDragStart={() => sortMode && handleDragStart(item.id)}
+                            onDragOver={e => sortMode && handleDragOver(e, item.id)}
+                            onDrop={() => sortMode && handleDrop(item.id)}
+                            onDragEnd={() => { setDraggedId(null); setDragOverId(null); }}
+                            className={`border-b border-border/50 transition-all ${sortMode ? 'cursor-grab active:cursor-grabbing' : 'hover:bg-muted/20'} ${isDragging ? 'opacity-40 scale-[0.99]' : ''} ${isDragOver ? 'bg-primary/8 border-primary/40' : ''}`}
+                            style={{ borderTopWidth: isDragOver ? '2px' : undefined, borderTopColor: isDragOver ? 'var(--primary)' : undefined }}>
+                            {sortMode && (
+                              <td className="py-3 px-2 text-center">
+                                <GripVertical className="w-4 h-4 text-muted-foreground mx-auto" />
                               </td>
-                              <td className="py-3 px-4"><span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">{cat?.icon ?? '📦'} {cat?.name_ar ?? item.category}</span></td>
-                              <td className="py-3 px-4"><span className="font-bold text-primary">{item.price}</span><span className="text-xs text-muted-foreground ms-1">ر.س</span></td>
-                              <td className="py-3 px-4 text-muted-foreground text-xs">{item.calories ? `${item.calories} cal` : '—'}</td>
-                              <td className="py-3 px-4 text-center"><Switch checked={item.is_available} onCheckedChange={() => handleToggle(item)} disabled={togglingId === item.id} /></td>
+                            )}
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-2">
+                                {item.image_url && <img src={item.image_url} alt={item.name_ar} className="w-8 h-8 rounded-lg object-cover border border-border shrink-0" />}
+                                <div>
+                                  <div className="font-semibold text-foreground">{item.name_ar}</div>
+                                  <div className="text-xs text-muted-foreground">{item.name_en}</div>
+                                </div>
+                              </div>
+                            </td>
+                            {!sortMode && <td className="py-3 px-4"><span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">{cat?.icon ?? '📦'} {cat?.name_ar ?? item.category}</span></td>}
+                            <td className="py-3 px-4"><span className="font-bold text-primary">{item.price}</span><span className="text-xs text-muted-foreground ms-1">ر.س</span></td>
+                            {!sortMode && <td className="py-3 px-4 text-muted-foreground text-xs">{item.calories ? `${item.calories} cal` : '—'}</td>}
+                            {!sortMode && <td className="py-3 px-4 text-center"><Switch checked={item.is_available} onCheckedChange={() => handleToggle(item)} disabled={togglingId === item.id} /></td>}
+                            {!sortMode && (
                               <td className="py-3 px-4">
                                 <div className="flex items-center justify-center gap-2">
                                   <Button size="icon" variant="ghost" className="w-8 h-8 text-muted-foreground hover:text-primary hover:bg-primary/10" onClick={() => { setEditItem(item); setFormOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
                                   <Button size="icon" variant="ghost" className="w-8 h-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteItem(item)}><Trash2 className="w-3.5 h-3.5" /></Button>
                                 </div>
                               </td>
-                            </motion.tr>
-                          );
-                        })}
-                      </AnimatePresence>
+                            )}
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
