@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import { fetchPublicMenuItems, fetchCategories, type MenuItem, type Category } from '@/lib/supabase';
 
-const DRINK_KEYS = ['hot', 'cold', 'mojito', 'مشروبات_ساخنة', 'مشروبات_باردة', 'موهيتو'];
+const LOGO = `${import.meta.env.BASE_URL}images/LOGO.png`;
 
-function isDrinkCategory(key: string) {
+function isDrinkCategory(key: string, nameAr?: string) {
   const k = key.toLowerCase();
+  const n = nameAr ?? '';
   return (
     k.includes('hot') || k.includes('cold') || k.includes('mojito') ||
-    k.includes('ساخن') || k.includes('بارد') || k.includes('موهيتو') ||
-    DRINK_KEYS.includes(k)
+    n.includes('ساخن') || n.includes('بارد') || n.includes('موهيتو')
   );
 }
 
@@ -27,259 +27,259 @@ export default function PrintMenuPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const drinkCats = categories.filter(c => isDrinkCategory(c.key));
-  const grouped: Record<string, MenuItem[]> = {};
-  for (const cat of drinkCats) {
-    grouped[cat.key] = items.filter(i => i.category === cat.key);
-  }
+  const drinkCats = categories.filter(c => isDrinkCategory(c.key, c.name_ar));
 
   const hotCat = drinkCats.find(c => c.key.toLowerCase().includes('hot') || c.name_ar?.includes('ساخن'));
   const coldCat = drinkCats.find(c => c.key.toLowerCase().includes('cold') || c.name_ar?.includes('بارد'));
   const mojitoCat = drinkCats.find(c => c.key.toLowerCase().includes('mojito') || c.name_ar?.includes('موهيتو'));
 
-  const hotItems = hotCat ? (grouped[hotCat.key] ?? []) : [];
-  const coldItems = coldCat ? (grouped[coldCat.key] ?? []) : [];
-  const mojitoItems = mojitoCat ? (grouped[mojitoCat.key] ?? []) : [];
+  const itemsOf = (key?: string) => (key ? items.filter(i => i.category === key) : []);
+  const hotItems = itemsOf(hotCat?.key);
+  const coldItems = itemsOf(coldCat?.key);
+  const mojitoItems = itemsOf(mojitoCat?.key);
 
-  const leftItems = [...coldItems, ...mojitoItems];
+  const renderItem = (item: MenuItem) => (
+    <div className="m-item" key={item.id}>
+      <span className="m-item-en">{item.name_en}</span>
+      <span className="m-item-ar">{item.name_ar}</span>
+    </div>
+  );
 
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Lato:wght@300;400&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Tajawal:wght@300;400;500;700&display=swap');
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { background: #e9e3d8; }
 
-        body { background: #fff; }
+        .screen-wrap {
+          min-height: 100vh;
+          display: flex;
+          justify-content: center;
+          padding: 24px 12px 60px;
+          background: #e9e3d8;
+        }
 
-        .print-page {
+        .page {
           width: 210mm;
           min-height: 297mm;
-          margin: 0 auto;
-          background: #fff;
-          padding: 14mm 12mm;
-          font-family: 'Lato', sans-serif;
+          background:
+            radial-gradient(circle at 50% 0%, #fffdf9 0%, #fbf6ec 55%, #f7f0e2 100%);
           position: relative;
+          padding: 16mm 14mm;
+          font-family: 'Tajawal', sans-serif;
+          color: #221a13;
+          box-shadow: 0 16px 50px rgba(60,40,20,0.18);
         }
 
-        .no-print {
-          position: fixed;
-          top: 16px;
-          right: 16px;
-          z-index: 100;
-          display: flex;
-          gap: 10px;
+        /* Double frame border */
+        .frame-outer {
+          position: absolute;
+          inset: 7mm;
+          border: 1.5px solid #c2a878;
+          pointer-events: none;
         }
-
-        .btn-print {
-          background: #1a1a1a;
-          color: #fff;
-          border: none;
-          padding: 10px 22px;
-          border-radius: 6px;
-          font-size: 14px;
-          cursor: pointer;
-          font-family: 'Lato', sans-serif;
-          letter-spacing: 0.05em;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.18);
-          transition: background 0.2s;
+        .frame-inner {
+          position: absolute;
+          inset: 8.5mm;
+          border: 0.75px solid #d8c5a0;
+          pointer-events: none;
         }
-        .btn-print:hover { background: #333; }
-
-        .btn-back {
-          background: #f0f0f0;
-          color: #333;
-          border: none;
-          padding: 10px 18px;
-          border-radius: 6px;
-          font-size: 14px;
-          cursor: pointer;
-          font-family: 'Lato', sans-serif;
-          text-decoration: none;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        .corner {
+          position: absolute;
+          width: 14px; height: 14px;
+          border: 1.5px solid #b8923f;
         }
+        .corner.tl { top: 6.2mm; left: 6.2mm; border-right: none; border-bottom: none; }
+        .corner.tr { top: 6.2mm; right: 6.2mm; border-left: none; border-bottom: none; }
+        .corner.bl { bottom: 6.2mm; left: 6.2mm; border-right: none; border-top: none; }
+        .corner.br { bottom: 6.2mm; right: 6.2mm; border-left: none; border-top: none; }
 
-        .header {
-          text-align: center;
-          margin-bottom: 8mm;
-          padding-bottom: 6mm;
-          border-bottom: 1px solid #d4b896;
+        .content { position: relative; z-index: 2; }
+
+        /* Header */
+        .header { text-align: center; margin-bottom: 7mm; }
+        .logo-circle {
+          width: 80px; height: 80px;
+          border-radius: 50%;
+          margin: 0 auto 10px;
+          overflow: hidden;
+          border: 2px solid #b8923f;
+          box-shadow: 0 4px 14px rgba(184,146,63,0.25);
+          background: #fff;
         }
+        .logo-circle img { width: 100%; height: 100%; object-fit: cover; }
 
-        .logo-area {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 12px;
-          margin-bottom: 4px;
-        }
-
-        .brand-name {
-          font-family: 'Playfair Display', serif;
-          font-size: 32px;
+        .brand {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 46px;
           font-weight: 700;
-          letter-spacing: 0.12em;
-          color: #1a1a1a;
+          letter-spacing: 0.04em;
+          line-height: 1;
+          color: #1a130d;
         }
-
-        .brand-tagline {
-          font-size: 11px;
-          letter-spacing: 0.28em;
+        .brand .amp { color: #E8622A; }
+        .tagline {
+          font-size: 9.5px;
+          letter-spacing: 0.42em;
           text-transform: uppercase;
-          color: #9c7b5a;
-          margin-top: 2px;
+          color: #9a7d4e;
+          margin-top: 7px;
+          font-family: 'Tajawal', sans-serif;
+          font-weight: 500;
         }
 
-        .menu-title {
-          font-family: 'Playfair Display', serif;
-          font-size: 13px;
-          letter-spacing: 0.22em;
+        .title-band {
+          display: flex; align-items: center; justify-content: center;
+          gap: 14px; margin: 9mm 0 8mm;
+        }
+        .title-band .line {
+          height: 1px; width: 70px;
+          background: linear-gradient(to right, transparent, #c2a878);
+        }
+        .title-band .line.r { background: linear-gradient(to left, transparent, #c2a878); }
+        .title-band .title {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 15px;
+          letter-spacing: 0.4em;
           text-transform: uppercase;
-          color: #c8a882;
-          margin-top: 8px;
+          color: #8a6d3c;
+          font-weight: 600;
         }
+        .title-band .dot { width: 5px; height: 5px; background: #E8622A; transform: rotate(45deg); }
 
-        .divider-ornament {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          justify-content: center;
-          margin: 6mm 0 8mm;
-        }
-        .divider-ornament span {
-          height: 1px;
-          width: 60px;
-          background: linear-gradient(to right, transparent, #d4b896);
-        }
-        .divider-ornament span:last-child {
-          background: linear-gradient(to left, transparent, #d4b896);
-        }
-        .divider-ornament .diamond {
-          width: 6px;
-          height: 6px;
-          background: #c8a882;
-          transform: rotate(45deg);
-          flex-shrink: 0;
-        }
-
+        /* Columns */
         .columns {
           display: grid;
           grid-template-columns: 1fr 1px 1fr;
-          gap: 0 10mm;
+          gap: 0 11mm;
           align-items: start;
         }
-
-        .col-divider {
-          background: linear-gradient(to bottom, transparent, #d4b896 15%, #d4b896 85%, transparent);
+        .v-divider {
           align-self: stretch;
+          background: linear-gradient(to bottom, transparent, #d2bd92 12%, #d2bd92 88%, transparent);
         }
 
-        .col-title {
-          font-family: 'Playfair Display', serif;
-          font-size: 16px;
+        .col-head { text-align: center; margin-bottom: 6mm; }
+        .col-head .en {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 23px;
           font-weight: 600;
-          letter-spacing: 0.1em;
-          text-align: center;
-          color: #1a1a1a;
-          margin-bottom: 5mm;
-          padding-bottom: 3mm;
-          border-bottom: 1px solid #e8d5be;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
+          letter-spacing: 0.05em;
+          color: #1a130d;
+        }
+        .col-head .ar {
+          font-size: 11px;
+          color: #9a7d4e;
+          font-weight: 500;
+          margin-top: 1px;
+          letter-spacing: 0.05em;
+        }
+        .col-head .underline {
+          width: 46px; height: 2px;
+          background: #E8622A;
+          margin: 7px auto 0;
+          border-radius: 2px;
         }
 
-        .col-subtitle {
-          font-size: 9px;
-          letter-spacing: 0.2em;
-          text-transform: uppercase;
-          color: #9c7b5a;
-          text-align: center;
-          margin-top: -4mm;
-          margin-bottom: 5mm;
-        }
-
-        .item-row {
+        .m-item {
           display: flex;
           justify-content: space-between;
           align-items: baseline;
-          padding: 3.5px 0;
-          border-bottom: 1px dotted #e8d5be;
+          padding: 5.5px 2px;
+          border-bottom: 1px dotted #ddcba4;
         }
-        .item-row:last-child { border-bottom: none; }
-
-        .item-name-en {
-          font-size: 12.5px;
-          color: #1a1a1a;
+        .m-item:last-child { border-bottom: none; }
+        .m-item-en {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 16px;
+          font-weight: 500;
+          color: #2a1f15;
+          letter-spacing: 0.01em;
+        }
+        .m-item-ar {
+          font-family: 'Tajawal', sans-serif;
+          font-size: 12px;
           font-weight: 400;
-          letter-spacing: 0.03em;
-        }
-
-        .item-name-ar {
-          font-size: 11px;
-          color: #6b6b6b;
+          color: #8a7355;
           direction: rtl;
-          font-weight: 300;
         }
 
-        .item-names {
-          display: flex;
-          flex-direction: column;
-          gap: 1px;
-          flex: 1;
-        }
-
-        .item-price {
-          font-size: 11px;
-          color: #9c7b5a;
-          font-weight: 400;
-          white-space: nowrap;
-          margin-inline-start: 8px;
-          letter-spacing: 0.03em;
-        }
-
-        .section-label {
-          font-size: 9px;
-          letter-spacing: 0.22em;
+        .sub-label {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 13px;
+          letter-spacing: 0.28em;
           text-transform: uppercase;
-          color: #c8a882;
-          margin-top: 5mm;
-          margin-bottom: 2mm;
+          color: #b8923f;
           text-align: center;
+          margin: 6mm 0 3mm;
+          display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .sub-label::before, .sub-label::after {
+          content: ''; height: 1px; width: 22px; background: #d2bd92;
         }
 
+        /* Footer */
         .footer {
           margin-top: 10mm;
           text-align: center;
-          border-top: 1px solid #d4b896;
-          padding-top: 5mm;
         }
-        .footer-text {
-          font-size: 9px;
-          letter-spacing: 0.2em;
+        .footer .orn {
+          display: flex; align-items: center; justify-content: center;
+          gap: 12px; margin-bottom: 6mm;
+        }
+        .footer .orn .line { height: 1px; width: 80px; background: linear-gradient(to right, transparent, #c2a878); }
+        .footer .orn .line.r { background: linear-gradient(to left, transparent, #c2a878); }
+        .footer .orn .dot { width: 5px; height: 5px; background: #E8622A; transform: rotate(45deg); }
+        .footer .name {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 14px;
+          letter-spacing: 0.22em;
           text-transform: uppercase;
-          color: #b8a090;
+          color: #6b573a;
         }
+        .footer .sub {
+          font-size: 10px;
+          color: #a08858;
+          margin-top: 4px;
+          letter-spacing: 0.08em;
+        }
+
+        /* Controls */
+        .no-print {
+          position: fixed; top: 16px; right: 16px; z-index: 100;
+          display: flex; gap: 10px;
+        }
+        .btn-print {
+          background: #E8622A; color: #fff; border: none;
+          padding: 11px 24px; border-radius: 8px; font-size: 14px;
+          cursor: pointer; font-family: 'Tajawal', sans-serif; font-weight: 700;
+          display: flex; align-items: center; gap: 8px;
+          box-shadow: 0 4px 14px rgba(232,98,42,0.35); transition: all .2s;
+        }
+        .btn-print:hover { background: #d4541e; transform: translateY(-1px); }
+        .btn-back {
+          background: #fff; color: #4a3a28; border: 1px solid #d8c5a0;
+          padding: 11px 20px; border-radius: 8px; font-size: 14px;
+          cursor: pointer; font-family: 'Tajawal', sans-serif; font-weight: 500;
+          text-decoration: none; display: flex; align-items: center; gap: 6px;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+        }
+
+        .loading { text-align: center; padding: 60px; color: #9a7d4e; font-size: 15px; }
 
         @media print {
           @page { size: A4; margin: 0; }
           .no-print { display: none !important; }
-          .print-page { margin: 0; padding: 12mm; width: 100%; }
+          .screen-wrap { padding: 0; background: #fff; }
+          .page { box-shadow: none; margin: 0; width: 100%; min-height: 100vh; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
       `}</style>
 
       <div className="no-print">
-        <a href="/" className="btn-back">
-          ← العودة
-        </a>
+        <a href={import.meta.env.BASE_URL} className="btn-back">← العودة</a>
         <button className="btn-print" onClick={() => window.print()}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
@@ -289,88 +289,74 @@ export default function PrintMenuPage() {
         </button>
       </div>
 
-      <div className="print-page">
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#9c7b5a', fontFamily: 'Lato, sans-serif' }}>
-            جاري التحميل...
+      <div className="screen-wrap">
+        <div className="page">
+          <div className="frame-outer" />
+          <div className="frame-inner" />
+          <div className="corner tl" /><div className="corner tr" />
+          <div className="corner bl" /><div className="corner br" />
+
+          <div className="content">
+            {loading ? (
+              <div className="loading">جاري التحميل...</div>
+            ) : (
+              <>
+                <div className="header">
+                  <div className="logo-circle"><img src={LOGO} alt="& Co." /></div>
+                  <div className="brand"><span className="amp">&amp;</span> Co.</div>
+                  <div className="tagline">Coffee Shop &amp; Pop Up</div>
+                </div>
+
+                <div className="title-band">
+                  <span className="line" />
+                  <span className="dot" />
+                  <span className="title">Menu</span>
+                  <span className="dot" />
+                  <span className="line r" />
+                </div>
+
+                <div className="columns">
+                  {/* Cold + Mojito */}
+                  <div>
+                    <div className="col-head">
+                      <div className="en">Cold Drinks</div>
+                      <div className="ar">مشروبات باردة</div>
+                      <div className="underline" />
+                    </div>
+                    {coldItems.map(renderItem)}
+
+                    {mojitoItems.length > 0 && (
+                      <>
+                        <div className="sub-label">Mojito</div>
+                        {mojitoItems.map(renderItem)}
+                      </>
+                    )}
+                  </div>
+
+                  <div className="v-divider" />
+
+                  {/* Hot */}
+                  <div>
+                    <div className="col-head">
+                      <div className="en">Hot Drinks</div>
+                      <div className="ar">مشروبات ساخنة</div>
+                      <div className="underline" />
+                    </div>
+                    {hotItems.map(renderItem)}
+                  </div>
+                </div>
+
+                <div className="footer">
+                  <div className="orn">
+                    <span className="line" /><span className="dot" /><span className="line r" />
+                  </div>
+                  <div className="name">&amp; Co. Coffee Shop</div>
+                  <div className="sub">قهوة متنقلة · Pop Up</div>
+                </div>
+              </>
+            )}
           </div>
-        ) : (
-          <>
-            <div className="header">
-              <div className="logo-area">
-                <div className="brand-name">& Co.</div>
-              </div>
-              <div className="brand-tagline">Coffee Shop & Pop Up</div>
-              <div className="menu-title">— Drinks Menu —</div>
-            </div>
-
-            <div className="divider-ornament">
-              <span />
-              <div className="diamond" />
-              <span />
-            </div>
-
-            <div className="columns">
-              {/* Cold + Mojito */}
-              <div>
-                <div className="col-title">
-                  <span>☕</span> Cold Drinks
-                </div>
-                <div className="col-subtitle">مشروبات باردة</div>
-                {coldItems.map(item => (
-                  <div className="item-row" key={item.id}>
-                    <div className="item-names">
-                      <span className="item-name-en">{item.name_en}</span>
-                      <span className="item-name-ar">{item.name_ar}</span>
-                    </div>
-                  </div>
-                ))}
-
-                {mojitoItems.length > 0 && (
-                  <>
-                    <div className="section-label">— Mojito & Specials —</div>
-                    {mojitoItems.map(item => (
-                      <div className="item-row" key={item.id}>
-                        <div className="item-names">
-                          <span className="item-name-en">{item.name_en}</span>
-                          <span className="item-name-ar">{item.name_ar}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </>
-                )}
-              </div>
-
-              <div className="col-divider" />
-
-              {/* Hot */}
-              <div>
-                <div className="col-title">
-                  <span>🌡️</span> Hot Drinks
-                </div>
-                <div className="col-subtitle">مشروبات ساخنة</div>
-                {hotItems.map(item => (
-                  <div className="item-row" key={item.id}>
-                    <div className="item-names">
-                      <span className="item-name-en">{item.name_en}</span>
-                      <span className="item-name-ar">{item.name_ar}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="divider-ornament" style={{ marginTop: '10mm' }}>
-              <span />
-              <div className="diamond" />
-              <span />
-            </div>
-
-            <div className="footer">
-              <div className="footer-text">& Co. Coffee Shop & Pop Up — قهوة متنقلة</div>
-            </div>
-          </>
-        )}
+        </div>
       </div>
     </>
   );
