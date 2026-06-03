@@ -81,15 +81,15 @@ export default function PrintMenuPage() {
           inset: 0;
           background-image: url(${cartBg});
           background-size: cover;
-          background-position: center 70%;
-          opacity: 0.085;
+          background-position: center 65%;
+          opacity: 0.28;
           z-index: 0;
           pointer-events: none;
         }
         .bg-veil {
           position: absolute;
           inset: 0;
-          background: radial-gradient(circle at 50% 30%, rgba(255,253,249,0.55) 0%, rgba(251,246,236,0.72) 60%, rgba(247,240,226,0.85) 100%);
+          background: linear-gradient(to bottom, rgba(252,248,240,0.78) 0%, rgba(250,245,235,0.62) 45%, rgba(249,243,231,0.78) 100%);
           z-index: 1;
           pointer-events: none;
         }
