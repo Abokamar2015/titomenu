@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchPublicMenuItems, fetchCategories, type MenuItem, type Category } from '@/lib/supabase';
+import cartBg from '@assets/WhatsApp_Image_2025-12-05_at_18.18.50_61f8547f_1780513767603.jpg';
 
 const LOGO = `${import.meta.env.BASE_URL}images/LOGO.png`;
 
@@ -71,6 +72,26 @@ export default function PrintMenuPage() {
           font-family: 'Tajawal', sans-serif;
           color: #221a13;
           box-shadow: 0 16px 50px rgba(60,40,20,0.18);
+          overflow: hidden;
+        }
+
+        /* Cart background watermark */
+        .bg-photo {
+          position: absolute;
+          inset: 0;
+          background-image: url(${cartBg});
+          background-size: cover;
+          background-position: center 70%;
+          opacity: 0.085;
+          z-index: 0;
+          pointer-events: none;
+        }
+        .bg-veil {
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(circle at 50% 30%, rgba(255,253,249,0.55) 0%, rgba(251,246,236,0.72) 60%, rgba(247,240,226,0.85) 100%);
+          z-index: 1;
+          pointer-events: none;
         }
 
         /* Double frame border */
@@ -291,6 +312,8 @@ export default function PrintMenuPage() {
 
       <div className="screen-wrap">
         <div className="page">
+          <div className="bg-photo" />
+          <div className="bg-veil" />
           <div className="frame-outer" />
           <div className="frame-inner" />
           <div className="corner tl" /><div className="corner tr" />
