@@ -323,7 +323,6 @@ export default function PrintMenuPage() {
                       <span className="item-name-en">{item.name_en}</span>
                       <span className="item-name-ar">{item.name_ar}</span>
                     </div>
-                    <span className="item-price">{item.price} ر.س</span>
                   </div>
                 ))}
 
@@ -336,7 +335,6 @@ export default function PrintMenuPage() {
                           <span className="item-name-en">{item.name_en}</span>
                           <span className="item-name-ar">{item.name_ar}</span>
                         </div>
-                        <span className="item-price">{item.price} ر.س</span>
                       </div>
                     ))}
                   </>
@@ -357,7 +355,6 @@ export default function PrintMenuPage() {
                       <span className="item-name-en">{item.name_en}</span>
                       <span className="item-name-ar">{item.name_ar}</span>
                     </div>
-                    <span className="item-price">{item.price} ر.س</span>
                   </div>
                 ))}
               </div>
