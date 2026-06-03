@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import {
   Plus, Pencil, Trash2, LogOut, QrCode,
   Download, Coffee, Search, Save, Loader2, Palette, UtensilsCrossed,
-  ImagePlus, X as XIcon, Tag, GripVertical, ArrowUpDown
+  ImagePlus, X as XIcon, Tag, GripVertical, ArrowUpDown, Printer
 } from 'lucide-react';
 import {
   fetchMenuItems, createMenuItem, updateMenuItem,
@@ -650,6 +650,9 @@ export default function AdminPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" className="border-primary text-primary hover:bg-primary/10 gap-1.5 text-xs" onClick={() => window.open(`${import.meta.env.BASE_URL}print`, '_blank')}>
+            <Printer className="w-3.5 h-3.5" />طباعة المينو
+          </Button>
           <Button size="sm" variant="outline" className="border-primary text-primary hover:bg-primary/10 gap-1.5 text-xs" onClick={() => setQrOpen(true)}>
             <QrCode className="w-3.5 h-3.5" />QR Code
           </Button>
