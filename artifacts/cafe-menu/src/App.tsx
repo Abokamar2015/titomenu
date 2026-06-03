@@ -2,6 +2,7 @@ import { Switch, Route, Router as WouterRouter } from "wouter";
 import { Toaster } from "sonner";
 import MenuPage from "@/pages/MenuPage";
 import AdminPage from "@/pages/AdminPage";
+import PrintMenuPage from "@/pages/PrintMenuPage";
 
 function Router() {
   return (
@@ -9,6 +10,7 @@ function Router() {
       <Route path="/" component={MenuPage} />
       <Route path="/menu" component={MenuPage} />
       <Route path="/admin" component={AdminPage} />
+      <Route path="/print" component={PrintMenuPage} />
       <Route>
         <div className="min-h-screen flex items-center justify-center bg-[#111] text-white">
           <div className="text-center">
