@@ -1,0 +1,1 @@
+- [Supabase → Replit DB migration](supabase-to-replit-migration.md) — cafe-menu plans to drop Supabase (egress cost/402) for Replit's free DB + object storage; route via api-server.
