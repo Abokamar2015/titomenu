@@ -13,9 +13,9 @@ import {
   uploadMenuImage, deleteMenuImage,
   fetchCategories, createCategory, updateCategory, deleteCategory, uploadCategoryImage,
   updateSortOrders,
+  login, logout, isAuthenticated,
 } from '@/lib/supabase';
 import type { MenuItem, MenuItemInsert, ThemeSettings, Category } from '@/lib/supabase';
-import { ADMIN_PASSWORD } from '@/lib/constants';
 import { springPresets } from '@/lib/motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,9 +30,13 @@ import { Label } from '@/components/ui/label';
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
-  const handleLogin = (e: React.FormEvent) => {
+  const [loading, setLoading] = useState(false);
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === ADMIN_PASSWORD) { sessionStorage.setItem('admin_auth', '1'); onLogin(); }
+    setLoading(true);
+    const ok = await login(password);
+    setLoading(false);
+    if (ok) { onLogin(); }
     else { setError(true); setTimeout(() => setError(false), 2000); }
   };
   return (
@@ -47,7 +51,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
           <form onSubmit={handleLogin} className="space-y-4">
             <Input type="password" placeholder="كلمة المرور" value={password} onChange={e => setPassword(e.target.value)} className={`text-center text-lg tracking-widest ${error ? 'border-destructive' : ''}`} dir="ltr" autoFocus />
             {error && <p className="text-xs text-destructive">كلمة المرور غير صحيحة</p>}
-            <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">دخول</Button>
+            <Button type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">{loading ? 'جارٍ الدخول…' : 'دخول'}</Button>
           </form>
         </div>
       </motion.div>
@@ -544,7 +548,7 @@ function ItemFormModal({ open, onClose, item, onSave, categories }: { open: bool
 
 /* ===================== MAIN ADMIN PAGE ===================== */
 export default function AdminPage() {
-  const [authed, setAuthed] = useState(() => sessionStorage.getItem('admin_auth') === '1');
+  const [authed, setAuthed] = useState(() => isAuthenticated());
   const [items, setItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
@@ -661,7 +665,7 @@ export default function AdminPage() {
               <Plus className="w-3.5 h-3.5" />{activeTab === 'menu' ? 'إضافة صنف' : 'إضافة تصنيف'}
             </Button>
           )}
-          <Button size="icon" variant="ghost" onClick={() => { sessionStorage.removeItem('admin_auth'); setAuthed(false); }} className="text-muted-foreground hover:text-foreground w-8 h-8">
+          <Button size="icon" variant="ghost" onClick={() => { logout(); setAuthed(false); }} className="text-muted-foreground hover:text-foreground w-8 h-8">
             <LogOut className="w-4 h-4" />
           </Button>
         </div>

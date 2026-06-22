@@ -12,5 +12,3 @@ export const CATEGORIES = {
 } as const;
 
 export type CategoryKey = keyof typeof CATEGORIES;
-
-export const ADMIN_PASSWORD = 'andco2024';

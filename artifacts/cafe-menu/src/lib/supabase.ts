@@ -3,12 +3,56 @@
 // Function signatures are kept stable so page components need no changes.
 
 const API = "/api";
+const TOKEN_KEY = "admin_token";
+
+export function getAuthToken(): string | null {
+  return sessionStorage.getItem(TOKEN_KEY);
+}
+
+function setAuthToken(token: string): void {
+  sessionStorage.setItem(TOKEN_KEY, token);
+}
+
+export function logout(): void {
+  sessionStorage.removeItem(TOKEN_KEY);
+}
+
+export function isAuthenticated(): boolean {
+  return !!getAuthToken();
+}
+
+/** Exchange the admin password for a signed token. Returns true on success. */
+export async function login(password: string): Promise<boolean> {
+  const res = await fetch(`${API}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password }),
+  });
+  if (!res.ok) return false;
+  const { token } = (await res.json()) as { token: string };
+  if (!token) return false;
+  setAuthToken(token);
+  return true;
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API}${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+      ...(init?.headers as Record<string, string> | undefined),
+    },
   });
+  if (res.status === 401) {
+    logout();
+    throw new Error(`API ${init?.method ?? "GET"} ${path} failed: unauthorized`);
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`API ${init?.method ?? "GET"} ${path} failed: ${res.status} ${text}`);
@@ -130,7 +174,7 @@ export function applyTheme(theme: ThemeSettings): void {
 async function uploadImage(file: File): Promise<string> {
   const reqRes = await fetch(`${API}/storage/uploads/request-url`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
   });
   if (!reqRes.ok) throw new Error(`Failed to request upload URL: ${reqRes.status}`);

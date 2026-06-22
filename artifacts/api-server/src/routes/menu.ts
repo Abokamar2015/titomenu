@@ -9,6 +9,7 @@ import {
   type MenuItem,
   type Category,
 } from "@workspace/db";
+import { requireAuth } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -117,7 +118,7 @@ router.get("/menu/items", async (req, res): Promise<void> => {
   res.json(filtered.map(itemToApi));
 });
 
-router.post("/menu/items", async (req, res): Promise<void> => {
+router.post("/menu/items", requireAuth, async (req, res): Promise<void> => {
   const parsed = itemInsert.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -130,7 +131,7 @@ router.post("/menu/items", async (req, res): Promise<void> => {
   res.status(201).json(itemToApi(row));
 });
 
-router.patch("/menu/items/sort-orders", async (req, res): Promise<void> => {
+router.patch("/menu/items/sort-orders", requireAuth, async (req, res): Promise<void> => {
   const schema = z.object({
     updates: z.array(
       z.object({ id: z.string(), sort_order: z.number().int() }),
@@ -152,7 +153,7 @@ router.patch("/menu/items/sort-orders", async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
-router.patch("/menu/items/:id", async (req, res): Promise<void> => {
+router.patch("/menu/items/:id", requireAuth, async (req, res): Promise<void> => {
   const id = paramStr(req.params.id);
   const parsed = itemUpdate.safeParse(req.body);
   if (!parsed.success) {
@@ -171,7 +172,7 @@ router.patch("/menu/items/:id", async (req, res): Promise<void> => {
   res.json(itemToApi(row));
 });
 
-router.delete("/menu/items/:id", async (req, res): Promise<void> => {
+router.delete("/menu/items/:id", requireAuth, async (req, res): Promise<void> => {
   const id = paramStr(req.params.id);
   await db.delete(menuItemsTable).where(eq(menuItemsTable.id, id));
   res.sendStatus(204);
@@ -186,7 +187,7 @@ router.get("/menu/categories", async (_req, res): Promise<void> => {
   res.json(rows.map(catToApi));
 });
 
-router.post("/menu/categories", async (req, res): Promise<void> => {
+router.post("/menu/categories", requireAuth, async (req, res): Promise<void> => {
   const parsed = catInsert.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -199,7 +200,7 @@ router.post("/menu/categories", async (req, res): Promise<void> => {
   res.status(201).json(catToApi(row));
 });
 
-router.patch("/menu/categories/:key", async (req, res): Promise<void> => {
+router.patch("/menu/categories/:key", requireAuth, async (req, res): Promise<void> => {
   const key = paramStr(req.params.key);
   const parsed = catUpdate.safeParse(req.body);
   if (!parsed.success) {
@@ -218,7 +219,7 @@ router.patch("/menu/categories/:key", async (req, res): Promise<void> => {
   res.json(catToApi(row));
 });
 
-router.delete("/menu/categories/:key", async (req, res): Promise<void> => {
+router.delete("/menu/categories/:key", requireAuth, async (req, res): Promise<void> => {
   const key = paramStr(req.params.key);
   await db.delete(categoriesTable).where(eq(categoriesTable.key, key));
   res.sendStatus(204);
@@ -230,7 +231,7 @@ router.get("/menu/settings", async (_req, res): Promise<void> => {
   res.json(rows.map((r) => ({ key: r.key, value: r.value })));
 });
 
-router.put("/menu/settings/:key", async (req, res): Promise<void> => {
+router.put("/menu/settings/:key", requireAuth, async (req, res): Promise<void> => {
   const key = paramStr(req.params.key);
   const parsed = z.object({ value: z.string() }).safeParse(req.body);
   if (!parsed.success) {
