@@ -1,1 +1,1 @@
-- [Supabase → Replit DB migration](supabase-to-replit-migration.md) — cafe-menu plans to drop Supabase (egress cost/402) for Replit's free DB + object storage; route via api-server.
+- [Supabase → Replit DB migration](supabase-to-replit-migration.md) — cafe-menu backend moved off Supabase to Replit Postgres + object storage via api-server; keep supabase.ts filename + snake_case wire shapes.

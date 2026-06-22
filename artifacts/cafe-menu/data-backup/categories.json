@@ -1,6 +1,0 @@
-[{"key":"hot","name_ar":"مشروبات ساخنة","name_en":"Hot Drinks","icon":"☕","sort_order":1,"is_active":true,"image_url":"https://utzpdtgnugzqmqxcbcpv.supabase.co/storage/v1/object/public/menu-images/cat_1778333212116.png"}, 
- {"key":"cold","name_ar":"مشروبات باردة","name_en":"Cold Drinks","icon":"🧊","sort_order":2,"is_active":true,"image_url":"https://utzpdtgnugzqmqxcbcpv.supabase.co/storage/v1/object/public/menu-images/cat_1778333604405.png"}, 
- {"key":"juice","name_ar":"موهيتو","name_en":"Mojito","icon":"🍜","sort_order":99,"is_active":true,"image_url":"https://utzpdtgnugzqmqxcbcpv.supabase.co/storage/v1/object/public/menu-images/cat_1778334525250.png"}, 
- {"key":"special_menu","name_ar":"قائمة خاصة","name_en":"Special Menu","icon":"🥤","sort_order":99,"is_active":true,"image_url":"https://utzpdtgnugzqmqxcbcpv.supabase.co/storage/v1/object/public/menu-images/cat_1778335993119.png"}, 
- {"key":"dessert","name_ar":"الحلى","name_en":"Dessert","icon":"🍰","sort_order":3,"is_active":true,"image_url":"https://utzpdtgnugzqmqxcbcpv.supabase.co/storage/v1/object/public/menu-images/cat_1778336248485.png"}, 
- {"key":"sandwich","name_ar":"ساندوتش","name_en":"Sandwich","icon":"🥪","sort_order":4,"is_active":true,"image_url":"https://utzpdtgnugzqmqxcbcpv.supabase.co/storage/v1/object/public/menu-images/cat_1778788890994.png"}]

@@ -1,31 +1,41 @@
 ---
-name: Planned Supabase → Replit DB migration (cafe-menu)
-description: Why and how the cafe-menu app should eventually move off Supabase to Replit's free database + object storage.
+name: cafe-menu Supabase → Replit migration
+description: How the cafe-menu backend was moved off Supabase to Replit Postgres + object storage, and the constraints that keep it working.
 ---
 
-# Planned migration: Supabase → Replit built-in DB (cafe-menu)
+# cafe-menu: off Supabase, onto Replit Postgres + object storage
 
-The cafe-menu app currently uses Supabase directly from the browser (anon key) for
-`menu_items`, `categories`, `settings` tables + `menu-images` storage bucket. See
-`artifacts/cafe-menu/src/lib/supabase.ts`.
+The cafe-menu app was migrated off Supabase (to kill an egress bill) onto Replit's
+free Postgres (Drizzle, `lib/db`) + object storage, served by the `api-server`
+artifact at `/api`.
 
-**Decision:** The owner wants to move OFF Supabase to Replit's built-in PostgreSQL
-(free with Replit) + Replit object storage to eliminate the Supabase bill.
+## Constraints worth keeping consistent
 
-**Why:** Supabase free tier hit `exceed_cached_egress_quota` (HTTP 402 on all REST
-calls, even server-side) — the public menu showed "no items" because data fetches
-were blocked. Restoring requires upgrading (paid) or waiting for the monthly free
-quota reset.
+- **`src/lib/supabase.ts` filename is intentionally kept** even though it no longer
+  uses Supabase. It is now a thin `fetch` client to `/api`. Pages import named
+  helpers + types from it; do not rename without updating MenuPage/AdminPage/PrintMenuPage.
+  **Why:** the migration's whole point was zero page changes — keep the helper
+  surface (signatures + snake_case types) identical to the old Supabase helpers.
+- **Field shapes stay snake_case on the wire** (`name_ar`, `is_available`, etc.).
+  The api-server maps snake_case ↔ camelCase Drizzle columns. Client/UI never sees
+  camelCase.
+- **`deleteMenuImage` is a deliberate no-op.** Orphaned objects are negligible cost;
+  there is no object-delete endpoint. Don't "fix" it into a real delete unless asked.
+- **Image upload = presigned flow:** client POSTs `/api/storage/uploads/request-url`,
+  PUTs bytes to the returned GCS URL, then stores `/api/storage<objectPath>` as the
+  serving URL.
 
-**Plan agreed (June 2026):** Owner renews/restores Supabase for the current month so
-the live menu works now; migration to Replit DB happens later (not yet done).
+## Gotchas learned
 
-**How to apply when migrating:**
-- Replit Postgres cannot be reached directly from the browser — route DB access
-  through the `api-server` artifact (build real API endpoints + admin-write auth).
-- Replace the direct-Supabase helpers in `src/lib/supabase.ts` with API calls.
-- Move images from the `menu-images` bucket to Replit object storage.
-- Extract existing Supabase data BEFORE the quota blocks again (egress resets monthly).
-  When blocked, data is fully unreadable; item names (AR/EN) and categories are
-  recoverable from the `/print` and `/` page screenshots, but prices/descriptions/
-  images are not.
+- **`pnpm remove`/`pnpm add` rewrite `pnpm-workspace.yaml`** — they strip the
+  `minimumReleaseAge` security comment block and reorder/normalize the file, and can
+  leave the lockfile in a state that makes an unrelated package (mockup-sandbox)
+  fail typecheck with a dual-Vite TS error (two vite instances differing only by
+  optional `tsx`/`yaml` peers). Fix: restore `pnpm-workspace.yaml` from HEAD via
+  `git show HEAD:pnpm-workspace.yaml > pnpm-workspace.yaml`, then
+  `pnpm install --no-frozen-lockfile` to regenerate a clean lockfile. After a clean
+  reinstall the dual-Vite typecheck error disappears.
+- **Route ordering:** in `api-server/src/routes/menu.ts`, `/menu/items/sort-orders`
+  must be declared BEFORE `/menu/items/:id` or the `:id` route shadows it.
+- Image PNGs are ~2MB each, so they load slowly (~5s) on first paint — this is a
+  pre-existing asset-size issue, not a migration bug.

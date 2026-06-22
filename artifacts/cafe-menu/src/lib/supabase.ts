@@ -1,9 +1,21 @@
-import { createClient } from '@supabase/supabase-js';
+// Backend client for the cafe menu.
+// Talks to the Replit api-server (Express + Postgres + object storage) over /api.
+// Function signatures are kept stable so page components need no changes.
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const API = "/api";
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API}${path}`, {
+    headers: { "Content-Type": "application/json" },
+    ...init,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`API ${init?.method ?? "GET"} ${path} failed: ${res.status} ${text}`);
+  }
+  if (res.status === 204) return undefined as T;
+  return (await res.json()) as T;
+}
 
 export interface MenuItem {
   id: string;
@@ -25,63 +37,43 @@ export type MenuItemInsert = Omit<MenuItem, 'id' | 'created_at' | 'updated_at'>;
 export type MenuItemUpdate = Partial<MenuItemInsert>;
 
 export async function fetchMenuItems(): Promise<MenuItem[]> {
-  const { data, error } = await supabase
-    .from('menu_items')
-    .select('*')
-    .order('category')
-    .order('sort_order');
-  if (error) throw error;
-  return data ?? [];
+  return apiFetch<MenuItem[]>("/menu/items");
 }
 
 export async function fetchPublicMenuItems(): Promise<MenuItem[]> {
-  const { data, error } = await supabase
-    .from('menu_items')
-    .select('*')
-    .eq('is_available', true)
-    .order('category')
-    .order('sort_order');
-  if (error) throw error;
-  return data ?? [];
+  return apiFetch<MenuItem[]>("/menu/items?available=true");
 }
 
 export async function createMenuItem(item: MenuItemInsert): Promise<MenuItem> {
-  const { data, error } = await supabase
-    .from('menu_items')
-    .insert(item)
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+  return apiFetch<MenuItem>("/menu/items", {
+    method: "POST",
+    body: JSON.stringify(item),
+  });
 }
 
 export async function updateMenuItem(id: string, updates: MenuItemUpdate): Promise<MenuItem> {
-  const { data, error } = await supabase
-    .from('menu_items')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+  return apiFetch<MenuItem>(`/menu/items/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(updates),
+  });
 }
 
 export async function deleteMenuItem(id: string): Promise<void> {
-  const { error } = await supabase.from('menu_items').delete().eq('id', id);
-  if (error) throw error;
+  await apiFetch<void>(`/menu/items/${id}`, { method: "DELETE" });
 }
 
 export async function toggleItemAvailability(id: string, is_available: boolean): Promise<void> {
-  const { error } = await supabase.from('menu_items').update({ is_available }).eq('id', id);
-  if (error) throw error;
+  await apiFetch<void>(`/menu/items/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ is_available }),
+  });
 }
 
 export async function updateSortOrders(updates: { id: string; sort_order: number }[]): Promise<void> {
-  await Promise.all(
-    updates.map(({ id, sort_order }) =>
-      supabase.from('menu_items').update({ sort_order }).eq('id', id)
-    )
-  );
+  await apiFetch<void>("/menu/items/sort-orders", {
+    method: "PATCH",
+    body: JSON.stringify({ updates }),
+  });
 }
 
 // ===== THEME SETTINGS =====
@@ -102,24 +94,27 @@ export const DEFAULT_THEME: ThemeSettings = {
 };
 
 export async function fetchThemeSettings(): Promise<ThemeSettings> {
-  const { data, error } = await supabase.from('settings').select('key, value');
-  if (error || !data) return DEFAULT_THEME;
-  const map: Record<string, string> = {};
-  data.forEach(row => { map[row.key] = row.value; });
-  return {
-    bg_color: map['bg_color'] ?? DEFAULT_THEME.bg_color,
-    card_color: map['card_color'] ?? DEFAULT_THEME.card_color,
-    primary_color: map['primary_color'] ?? DEFAULT_THEME.primary_color,
-    text_color: map['text_color'] ?? DEFAULT_THEME.text_color,
-    border_color: map['border_color'] ?? DEFAULT_THEME.border_color,
-  };
+  try {
+    const rows = await apiFetch<{ key: string; value: string }[]>("/menu/settings");
+    const map: Record<string, string> = {};
+    rows.forEach((row) => { map[row.key] = row.value; });
+    return {
+      bg_color: map['bg_color'] ?? DEFAULT_THEME.bg_color,
+      card_color: map['card_color'] ?? DEFAULT_THEME.card_color,
+      primary_color: map['primary_color'] ?? DEFAULT_THEME.primary_color,
+      text_color: map['text_color'] ?? DEFAULT_THEME.text_color,
+      border_color: map['border_color'] ?? DEFAULT_THEME.border_color,
+    };
+  } catch {
+    return DEFAULT_THEME;
+  }
 }
 
 export async function saveThemeSetting(key: string, value: string): Promise<void> {
-  const { error } = await supabase
-    .from('settings')
-    .upsert({ key, value }, { onConflict: 'key' });
-  if (error) throw error;
+  await apiFetch<void>(`/menu/settings/${encodeURIComponent(key)}`, {
+    method: "PUT",
+    body: JSON.stringify({ value }),
+  });
 }
 
 export function applyTheme(theme: ThemeSettings): void {
@@ -131,24 +126,36 @@ export function applyTheme(theme: ThemeSettings): void {
   root.style.setProperty('--theme-border', theme.border_color);
 }
 
-// ===== STORAGE =====
-const BUCKET = 'menu-images';
+// ===== STORAGE (object storage via presigned upload) =====
+async function uploadImage(file: File): Promise<string> {
+  const reqRes = await fetch(`${API}/storage/uploads/request-url`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+  });
+  if (!reqRes.ok) throw new Error(`Failed to request upload URL: ${reqRes.status}`);
+  const { uploadURL, objectPath } = (await reqRes.json()) as {
+    uploadURL: string;
+    objectPath: string;
+  };
 
-export async function uploadMenuImage(file: File): Promise<string> {
-  const ext = file.name.split('.').pop() ?? 'jpg';
-  const fileName = `item_${Date.now()}.${ext}`;
-  const { error } = await supabase.storage
-    .from(BUCKET)
-    .upload(fileName, file, { upsert: true, contentType: file.type });
-  if (error) throw error;
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(fileName);
-  return data.publicUrl;
+  const putRes = await fetch(uploadURL, {
+    method: "PUT",
+    headers: { "Content-Type": file.type || "application/octet-stream" },
+    body: file,
+  });
+  if (!putRes.ok) throw new Error(`Failed to upload file: ${putRes.status}`);
+
+  return `${API}/storage${objectPath}`;
 }
 
-export async function deleteMenuImage(imageUrl: string): Promise<void> {
-  const fileName = imageUrl.split('/').pop();
-  if (!fileName) return;
-  await supabase.storage.from(BUCKET).remove([fileName]);
+export async function uploadMenuImage(file: File): Promise<string> {
+  return uploadImage(file);
+}
+
+export async function deleteMenuImage(_imageUrl: string): Promise<void> {
+  // Object storage cleanup is a no-op; orphaned objects are negligible in cost.
+  // Kept for API compatibility with callers.
 }
 
 // ===== CATEGORIES =====
@@ -163,41 +170,29 @@ export interface Category {
 }
 
 export async function uploadCategoryImage(file: File): Promise<string> {
-  const ext = file.name.split('.').pop();
-  const fileName = `cat_${Date.now()}.${ext}`;
-  const { error } = await supabase.storage
-    .from('menu-images')
-    .upload(fileName, file, { upsert: true });
-  if (error) throw error;
-  const { data } = supabase.storage.from('menu-images').getPublicUrl(fileName);
-  return data.publicUrl;
+  return uploadImage(file);
 }
 
 export async function fetchCategories(): Promise<Category[]> {
-  const { data, error } = await supabase
-    .from('categories')
-    .select('*')
-    .order('sort_order');
-  if (error) throw error;
-  return data ?? [];
+  return apiFetch<Category[]>("/menu/categories");
 }
 
 export async function createCategory(cat: Category): Promise<void> {
-  const { error } = await supabase
-    .from('categories')
-    .insert({ ...cat, is_active: true });
-  if (error) throw error;
+  await apiFetch<Category>("/menu/categories", {
+    method: "POST",
+    body: JSON.stringify({ ...cat, is_active: true }),
+  });
 }
 
 export async function updateCategory(key: string, updates: Partial<Category>): Promise<void> {
-  const { error } = await supabase
-    .from('categories')
-    .update(updates)
-    .eq('key', key);
-  if (error) throw error;
+  await apiFetch<Category>(`/menu/categories/${encodeURIComponent(key)}`, {
+    method: "PATCH",
+    body: JSON.stringify(updates),
+  });
 }
 
 export async function deleteCategory(key: string): Promise<void> {
-  const { error } = await supabase.from('categories').delete().eq('key', key);
-  if (error) throw error;
+  await apiFetch<void>(`/menu/categories/${encodeURIComponent(key)}`, {
+    method: "DELETE",
+  });
 }
