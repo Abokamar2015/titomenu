@@ -25,7 +25,7 @@ A bilingual (Arabic/English) digital menu app for "& Co. Coffee Shop & Pop Up" w
   - `src/pages/AdminPage.tsx` — password-protected admin panel
   - `src/lib/supabase.ts` — backend client: fetch helpers for all DB/storage operations (filename kept for stable imports; no longer uses Supabase)
   - `src/lib/motion.ts` — framer-motion spring presets
-  - `src/lib/constants.ts` — admin password, route paths
+  - `src/lib/constants.ts` — route paths, category labels (no password — auth is server-side)
   - `public/images/` — cover.jpg, LOGO.png, cropped category image
 - `artifacts/api-server/` — Express API server (serves the menu app's `/api` routes)
   - `src/routes/menu.ts` — CRUD for items, categories, settings (Drizzle + Zod)
@@ -38,14 +38,14 @@ A bilingual (Arabic/English) digital menu app for "& Co. Coffee Shop & Pop Up" w
 - Images live in Replit object storage; uploads use a presigned-URL flow and are served via `/api/storage/objects/...`
 - Client helpers keep snake_case field shapes (e.g. `name_ar`, `is_available`); the api-server maps to/from camelCase Drizzle columns
 - Theme colors are stored in the `settings` table as key-value pairs and fetched at runtime — no CSS vars
-- Admin password is client-side only (`andco2024`) — stored in constants.ts, checked against sessionStorage
+- Admin auth is server-side: login posts the password to `/api/auth/login`, which verifies it against the `ADMIN_PASSWORD` secret (constant-time) and returns an HMAC-signed, 7-day token (signed with `SESSION_SECRET`). The client stores the token in sessionStorage (`admin_token`) and sends it as `Authorization: Bearer <token>`. All mutating endpoints require it; public GET endpoints stay open.
 - Routing via wouter (matches scaffold convention) with BASE_URL prefix for proxy compatibility
 - Dark-themed by default; theme fully customizable via admin "المظهر" tab with 6 presets + manual color pickers
 
 ## Product
 
 - **Public menu** (`/`): Cover image, logo, social links (Instagram, TikTok, Maps, WhatsApp), category tabs with images/icons, list/grid view toggle, item detail modal, Arabic/English bilingual toggle
-- **Admin panel** (`/admin`, password: `andco2024`): Manage menu items (CRUD), categories (CRUD with image upload), theme colors (presets + custom), QR Code generator for sharing menu link
+- **Admin panel** (`/admin`, server-side password via `ADMIN_PASSWORD` secret): Manage menu items (CRUD), categories (CRUD with image upload), theme colors (presets + custom), QR Code generator for sharing menu link
 
 ## User preferences
 
@@ -55,7 +55,7 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 - Env vars: `DATABASE_URL` (Postgres) + object-storage vars (`DEFAULT_OBJECT_STORAGE_BUCKET_ID`, `PUBLIC_OBJECT_SEARCH_PATHS`, `PRIVATE_OBJECT_DIR`) — already configured in shared env
 - Theme is applied via inline styles on the MenuPage (not CSS variables) — fetched from the api-server on each load
-- Admin auth uses `sessionStorage` — clears on tab close
+- Admin auth: client stores the server-issued token in `sessionStorage` (`admin_token`) — clears on tab close; `apiFetch` and the upload flow both log out on a 401. Password is the `ADMIN_PASSWORD` secret (never in client code)
 - Image uploads go through object storage; `deleteMenuImage` is intentionally a no-op (orphaned objects are negligible)
 - In `api-server/src/routes/menu.ts`, the `/menu/items/sort-orders` route must be declared BEFORE `/menu/items/:id` or it gets shadowed
 

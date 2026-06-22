@@ -177,6 +177,10 @@ async function uploadImage(file: File): Promise<string> {
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
   });
+  if (reqRes.status === 401) {
+    logout();
+    throw new Error("Failed to request upload URL: unauthorized");
+  }
   if (!reqRes.ok) throw new Error(`Failed to request upload URL: ${reqRes.status}`);
   const { uploadURL, objectPath } = (await reqRes.json()) as {
     uploadURL: string;
