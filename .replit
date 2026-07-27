@@ -33,7 +33,6 @@ externalPort = 3001
 
 [[ports]]
 localPort = 25924
-externalPort = 3000
 
 [userenv]
 
@@ -43,3 +42,6 @@ VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhY
 
 [nix]
 channel = "stable-25_05"
+
+[objectStorage]
+defaultBucketID = "replit-objstore-dac51a8c-f79d-4fcd-960e-eb3c63d99824"
