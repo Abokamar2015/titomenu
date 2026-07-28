@@ -4,6 +4,5 @@ node_modules
 .git
 .local
 .agents
-attached_assets
 artifacts/mockup-sandbox
 *.log
