@@ -1,41 +1,17 @@
 ---
-name: cafe-menu Supabase → Replit migration
-description: How the cafe-menu backend was moved off Supabase to Replit Postgres + object storage, and the constraints that keep it working.
+name: Backend now on Supabase (Railway target)
+description: cafe-menu backend runs on Supabase Postgres + Supabase Storage; Replit DB/object storage are legacy fallbacks only.
 ---
 
-# cafe-menu: off Supabase, onto Replit Postgres + object storage
+# Backend: Supabase (July 2026)
 
-The cafe-menu app was migrated off Supabase (to kill an egress bill) onto Replit's
-free Postgres (Drizzle, `lib/db`) + object storage, served by the `api-server`
-artifact at `/api`.
+The app was migrated Replit Postgres/object-storage → **Supabase** so the user can host on Railway and leave Replit.
 
-## Constraints worth keeping consistent
+- DB connection: `SUPABASE_DATABASE_URL` (session pooler, port 5432) with password **overridden** by `SUPABASE_DB_PASSWORD` — the URL secret contains a stale password. Fallback: `DATABASE_URL`. SSL `rejectUnauthorized:false` for supabase hosts.
+- `SUPABASE_URL` secret may include a path (`/rest/v1`); code normalizes to origin. Direct-connection host `db.<ref>.supabase.co` does NOT resolve — only the pooler works.
+- Storage: public bucket `menu-images`, keys `uploads/<uuid>`. Upload via Supabase signed upload URLs (PUT). Serving proxied through `/api/storage/objects/...` — this URL shape is stored in DB `image_url` columns and must stay stable.
+- Client wire shapes stay snake_case; frontend helper file keeps the `supabase.ts` name (plain fetch, no SDK).
+- All prod data migrated (50 items, 6 categories, 5 settings, 55 images).
+- Deployment: root `Dockerfile` builds one service (static frontend + Express API); `STATIC_DIR` enables static serving/SPA fallback; `admin.<domain>` → `/admin` redirect. Arabic guide in `DEPLOY.md`.
 
-- **`src/lib/supabase.ts` filename is intentionally kept** even though it no longer
-  uses Supabase. It is now a thin `fetch` client to `/api`. Pages import named
-  helpers + types from it; do not rename without updating MenuPage/AdminPage/PrintMenuPage.
-  **Why:** the migration's whole point was zero page changes — keep the helper
-  surface (signatures + snake_case types) identical to the old Supabase helpers.
-- **Field shapes stay snake_case on the wire** (`name_ar`, `is_available`, etc.).
-  The api-server maps snake_case ↔ camelCase Drizzle columns. Client/UI never sees
-  camelCase.
-- **`deleteMenuImage` is a deliberate no-op.** Orphaned objects are negligible cost;
-  there is no object-delete endpoint. Don't "fix" it into a real delete unless asked.
-- **Image upload = presigned flow:** client POSTs `/api/storage/uploads/request-url`,
-  PUTs bytes to the returned GCS URL, then stores `/api/storage<objectPath>` as the
-  serving URL.
-
-## Gotchas learned
-
-- **`pnpm remove`/`pnpm add` rewrite `pnpm-workspace.yaml`** — they strip the
-  `minimumReleaseAge` security comment block and reorder/normalize the file, and can
-  leave the lockfile in a state that makes an unrelated package (mockup-sandbox)
-  fail typecheck with a dual-Vite TS error (two vite instances differing only by
-  optional `tsx`/`yaml` peers). Fix: restore `pnpm-workspace.yaml` from HEAD via
-  `git show HEAD:pnpm-workspace.yaml > pnpm-workspace.yaml`, then
-  `pnpm install --no-frozen-lockfile` to regenerate a clean lockfile. After a clean
-  reinstall the dual-Vite typecheck error disappears.
-- **Route ordering:** in `api-server/src/routes/menu.ts`, `/menu/items/sort-orders`
-  must be declared BEFORE `/menu/items/:id` or the `:id` route shadows it.
-- Image PNGs are ~2MB each, so they load slowly (~5s) on first paint — this is a
-  pre-existing asset-size issue, not a migration bug.
+**Why:** user wants full independence from Replit (cancel subscription); keep Replit deployment live until Railway + DNS verified.

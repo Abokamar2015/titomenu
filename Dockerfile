@@ -1,7 +1,7 @@
 # TitoMenu — production image for Railway (or any Docker host)
 # Builds the React frontend + Express API and serves both from one server.
 
-FROM node:22-alpine AS build
+FROM node:22-slim AS build
 RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
@@ -20,7 +20,7 @@ RUN pnpm --filter @workspace/cafe-menu run build \
  && pnpm --filter @workspace/api-server run build
 
 # ---- Runtime image ----
-FROM node:22-alpine
+FROM node:22-slim
 WORKDIR /app
 ENV NODE_ENV=production
 

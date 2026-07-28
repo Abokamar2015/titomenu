@@ -1,2 +1,2 @@
-- [Supabase → Replit DB migration](supabase-to-replit-migration.md) — cafe-menu backend moved off Supabase to Replit Postgres + object storage via api-server; keep supabase.ts filename + snake_case wire shapes.
+- [Backend on Supabase](supabase-to-replit-migration.md) — DB+images now on Supabase (pooler only, pw override via SUPABASE_DB_PASSWORD); Railway Dockerfile deploy; keep supabase.ts filename + snake_case wire shapes.
 - [cafe-menu admin auth](cafe-menu-admin-auth.md) — server-side token auth; every write needs requireAuth, GETs stay public, client must logout on 401.
