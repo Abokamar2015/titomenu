@@ -1,0 +1,118 @@
+u reached the start of the range
+Jul 28, 2026, 10:01 PM
+scheduling build on Metal builder "builder-axstjo"
+unpacking archive
+8.4 MB
+55ms
+
+internal
+load build definition from Dockerfile
+0ms
+
+internal
+load metadata for docker.io/library/node:22-slim
+141ms
+
+internal
+load .dockerignore
+0ms
+
+build
+FROM docker.io/library/node:22-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3
+14ms
+
+internal
+load build context
+0ms
+
+stage-1
+WORKDIR /app cached
+23ms
+
+build
+WORKDIR /app cached
+0ms
+
+build
+RUN corepack enable && corepack prepare pnpm@latest --activate cached
+0ms
+
+build
+COPY scripts ./scripts cached
+0ms
+
+build
+COPY artifacts/api-server ./artifacts/api-server cached
+0ms
+
+build
+COPY artifacts/cafe-menu ./artifacts/cafe-menu cached
+0ms
+
+build
+COPY lib ./lib cached
+0ms
+
+build
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* ./ cached
+0ms
+
+build
+COPY attached_assets ./attached_assets
+1s
+uploading snapshot
+7.6 MB
+149ms
+
+build
+COPY tsconfig*.json ./
+516ms
+
+build
+RUN pnpm install --frozen-lockfile || pnpm install
+12s
+Done in 5.9s using pnpm v11.17.0
+
+build
+RUN pnpm --filter @workspace/cafe-menu run build  && pnpm --filter @workspace/api-server run build
+6s
+⚡ Done in 257ms
+
+stage-1
+COPY --from=build /app/artifacts/api-server/dist ./server
+286ms
+
+stage-1
+COPY --from=build /app/artifacts/cafe-menu/dist/public ./public
+267ms
+
+exporting to docker image format
+559ms
+containerimage.digest: sha256:383dbb9244eae76822fb2f3cf31136f585385cc9a5262a3959d01a4c0e074d84
+containerimage.descriptor: eyJtZWRpYVR5cGUiOiJhcHBsaWNhdGlvbi92bmQub2NpLmltYWdlLm1hbmlmZXN0LnYxK2pzb24iLCJkaWdlc3QiOiJzaGEyNTY6MzgzZGJiOTI0NGVhZTc2ODIyZmIyZjNjZjMxMTM2ZjU4NTM4NWNjOWE1MjYyYTM5NTlkMDFhNGMwZTA3NGQ4NCIsInNpemUiOjE4MTUsImFubm90YXRpb25zIjp7Im9yZy5vcGVuY29udGFpbmVycy5pbWFnZS5jcmVhdGVkIjoiMjAyNi0wNy0yOFQxOTowNzoyNloifSwicGxhdGZvcm0iOnsiYXJjaGl0ZWN0dXJlIjoiYW1kNjQiLCJvcyI6ImxpbnV4In19
+containerimage.config.digest: sha256:a0f63dc44d1514a28581aa9802218ba55658f7a17c5fdf41f75d679179ef4dc1
+image push
+79.8 MB / 79.9 MB
+40.8s
+ 
+====================
+Starting Healthcheck
+====================
+Path: /api/healthz
+Retry window: 5m0s
+ 
+Attempt #1 failed with service unavailable. Continuing to retry for 4m49s
+Attempt #2 failed with service unavailable. Continuing to retry for 4m38s
+Attempt #3 failed with service unavailable. Continuing to retry for 4m26s
+Attempt #4 failed with service unavailable. Continuing to retry for 4m12s
+Attempt #5 failed with service unavailable. Continuing to retry for 3m54s
+Attempt #6 failed with service unavailable. Continuing to retry for 3m28s
+Attempt #7 failed with service unavailable. Continuing to retry for 2m48s
+Attempt #8 failed with service unavailable. Continuing to retry for 2m8s
+Attempt #9 failed with service unavailable. Continuing to retry for 1m28s
+Attempt #10 failed with service unavailable. Continuing to retry for 48s
+Attempt #11 failed with service unavailable. Continuing to retry for 8s
+ 
+1/1 replicas never became healthy!
+
+Healthcheck failed!
