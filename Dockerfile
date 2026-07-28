@@ -10,6 +10,7 @@ COPY lib ./lib
 COPY artifacts/cafe-menu ./artifacts/cafe-menu
 COPY artifacts/api-server ./artifacts/api-server
 COPY scripts ./scripts
+COPY attached_assets ./attached_assets
 COPY tsconfig*.json ./
 
 RUN pnpm install --frozen-lockfile || pnpm install
