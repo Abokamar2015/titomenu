@@ -3,15 +3,6 @@ import { useParams } from 'wouter';
 import { fetchPublicMenuItems, fetchPublicCategories, fetchPublicSettings, fetchPublicRestaurant, type MenuItem, type Category, type PublicRestaurant } from '@/lib/supabase';
 import cartBg from '@assets/WhatsApp_Image_2025-12-05_at_18.18.50_61f8547f_1780513767603.jpg';
 
-function isDrinkCategory(key: string, nameAr?: string) {
-  const k = key.toLowerCase();
-  const n = nameAr ?? '';
-  return (
-    k.includes('hot') || k.includes('cold') || k.includes('mojito') ||
-    n.includes('ساخن') || n.includes('بارد') || n.includes('موهيتو')
-  );
-}
-
 export default function PrintMenuPage() {
   const [items, setItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -40,16 +31,25 @@ export default function PrintMenuPage() {
   const isDefaultRestaurant = !slug || slug === 'and-co';
   const bgUrl = settings['cover_url'] || (isDefaultRestaurant ? cartBg : '');
 
-  const drinkCats = categories.filter(c => isDrinkCategory(c.key, c.name_ar));
-
-  const hotCat = drinkCats.find(c => c.key.toLowerCase().includes('hot') || c.name_ar?.includes('ساخن'));
-  const coldCat = drinkCats.find(c => c.key.toLowerCase().includes('cold') || c.name_ar?.includes('بارد'));
-  const mojitoCat = drinkCats.find(c => c.key.toLowerCase().includes('mojito') || c.name_ar?.includes('موهيتو'));
-
-  const itemsOf = (key?: string) => (key ? items.filter(i => i.category === key) : []);
-  const hotItems = itemsOf(hotCat?.key);
-  const coldItems = itemsOf(coldCat?.key);
-  const mojitoItems = itemsOf(mojitoCat?.key);
+  // Render the restaurant's own categories (from the DB), skipping empty
+  // ones, and balance them across two print columns by item count.
+  const allSections = categories.map(cat => ({
+    cat,
+    catItems: items.filter(i => i.category === cat.key),
+  }));
+  // Prefer categories that have items; if none have items yet, still show
+  // the restaurant's own category headings so the page is never blank.
+  const nonEmpty = allSections.filter(s => s.catItems.length > 0);
+  const sections = nonEmpty.length > 0 ? nonEmpty : allSections;
+  const colA: typeof sections = [];
+  const colB: typeof sections = [];
+  let countA = 0;
+  let countB = 0;
+  for (const s of sections) {
+    // +2 accounts for the heading overhead of each section.
+    if (countA <= countB) { colA.push(s); countA += s.catItems.length + 2; }
+    else { colB.push(s); countB += s.catItems.length + 2; }
+  }
 
   const renderItem = (item: MenuItem) => (
     <div className="m-item" key={item.id}>
@@ -195,6 +195,7 @@ export default function PrintMenuPage() {
         }
 
         .col-head { text-align: center; margin-bottom: 6mm; }
+        .cat-block + .cat-block { margin-top: 8mm; }
         .col-head .en {
           font-family: 'Cormorant Garamond', serif;
           font-size: 23px;
@@ -353,33 +354,32 @@ export default function PrintMenuPage() {
                 </div>
 
                 <div className="columns">
-                  {/* Cold + Mojito */}
                   <div>
-                    <div className="col-head">
-                      <div className="en">Cold Drinks</div>
-                      <div className="ar">مشروبات باردة</div>
-                      <div className="underline" />
-                    </div>
-                    {coldItems.map(renderItem)}
-
-                    {mojitoItems.length > 0 && (
-                      <>
-                        <div className="sub-label">Mojito</div>
-                        {mojitoItems.map(renderItem)}
-                      </>
-                    )}
+                    {colA.map(({ cat, catItems }) => (
+                      <div key={cat.key} className="cat-block">
+                        <div className="col-head">
+                          <div className="en">{cat.name_en}</div>
+                          <div className="ar">{cat.name_ar}</div>
+                          <div className="underline" />
+                        </div>
+                        {catItems.map(renderItem)}
+                      </div>
+                    ))}
                   </div>
 
                   <div className="v-divider" />
 
-                  {/* Hot */}
                   <div>
-                    <div className="col-head">
-                      <div className="en">Hot Drinks</div>
-                      <div className="ar">مشروبات ساخنة</div>
-                      <div className="underline" />
-                    </div>
-                    {hotItems.map(renderItem)}
+                    {colB.map(({ cat, catItems }) => (
+                      <div key={cat.key} className="cat-block">
+                        <div className="col-head">
+                          <div className="en">{cat.name_en}</div>
+                          <div className="ar">{cat.name_ar}</div>
+                          <div className="underline" />
+                        </div>
+                        {catItems.map(renderItem)}
+                      </div>
+                    ))}
                   </div>
                 </div>
 
