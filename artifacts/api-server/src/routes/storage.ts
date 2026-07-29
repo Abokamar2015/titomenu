@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { Readable } from "stream";
 import { z } from "zod/v4";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
-import { requireAuth } from "../lib/auth";
+import { requireUser, requireRestaurantRole } from "../lib/auth";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -14,13 +14,18 @@ const RequestUploadUrlBody = z.object({
 });
 
 /**
- * POST /storage/uploads/request-url
+ * POST /restaurants/:restaurantId/storage/uploads/request-url
  *
- * Request a signed URL for file upload (Supabase Storage).
+ * Request a signed URL for file upload (Supabase Storage), scoped to a
+ * restaurant the caller is a member of.
  * The client sends JSON metadata (name, size, contentType) — NOT the file.
  * Then uploads the file directly to the returned signed URL via PUT.
  */
-router.post("/storage/uploads/request-url", requireAuth, async (req: Request, res: Response) => {
+router.post(
+  "/restaurants/:restaurantId/storage/uploads/request-url",
+  requireUser,
+  requireRestaurantRole("owner", "manager", "staff"),
+  async (req: Request, res: Response) => {
   const parsed = RequestUploadUrlBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Missing or invalid required fields" });

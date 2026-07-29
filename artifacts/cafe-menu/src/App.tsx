@@ -9,6 +9,8 @@ function Router() {
     <Switch>
       <Route path="/" component={MenuPage} />
       <Route path="/menu" component={MenuPage} />
+      <Route path="/r/:slug" component={MenuPage} />
+      <Route path="/r/:slug/print" component={PrintMenuPage} />
       <Route path="/admin" component={AdminPage} />
       <Route path="/print" component={PrintMenuPage} />
       <Route>

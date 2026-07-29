@@ -9,11 +9,12 @@ import {
 import {
   fetchMenuItems, createMenuItem, updateMenuItem,
   deleteMenuItem, toggleItemAvailability,
-  fetchThemeSettings, saveThemeSetting,
+  fetchAdminThemeSettings, saveThemeSetting,
   uploadMenuImage, deleteMenuImage,
   fetchCategories, createCategory, updateCategory, deleteCategory, uploadCategoryImage,
   updateSortOrders,
   login, logout, isAuthenticated,
+  getCurrentRestaurantSlug, DEFAULT_SLUG,
 } from '@/lib/supabase';
 import type { MenuItem, MenuItemInsert, ThemeSettings, Category } from '@/lib/supabase';
 import { springPresets } from '@/lib/motion';
@@ -28,13 +29,14 @@ import { Label } from '@/components/ui/label';
 
 /* ===================== LOGIN ===================== */
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const ok = await login(password);
+    const ok = await login(email, password);
     setLoading(false);
     if (ok) { onLogin(); }
     else { setError(true); setTimeout(() => setError(false), 2000); }
@@ -49,8 +51,9 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
           <h1 className="text-xl font-bold text-foreground mb-1">& Co. Admin</h1>
           <p className="text-sm text-muted-foreground mb-6">لوحة إدارة المينيو</p>
           <form onSubmit={handleLogin} className="space-y-4">
-            <Input type="password" placeholder="كلمة المرور" value={password} onChange={e => setPassword(e.target.value)} className={`text-center text-lg tracking-widest ${error ? 'border-destructive' : ''}`} dir="ltr" autoFocus />
-            {error && <p className="text-xs text-destructive">كلمة المرور غير صحيحة</p>}
+            <Input type="email" placeholder="البريد الإلكتروني" value={email} onChange={e => setEmail(e.target.value)} className={`text-center ${error ? 'border-destructive' : ''}`} dir="ltr" autoFocus autoComplete="email" />
+            <Input type="password" placeholder="كلمة المرور" value={password} onChange={e => setPassword(e.target.value)} className={`text-center text-lg tracking-widest ${error ? 'border-destructive' : ''}`} dir="ltr" autoComplete="current-password" />
+            {error && <p className="text-xs text-destructive">بيانات الدخول غير صحيحة</p>}
             <Button type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">{loading ? 'جارٍ الدخول…' : 'دخول'}</Button>
           </form>
         </div>
@@ -59,9 +62,23 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
   );
 }
 
+/* ===================== TENANT PATHS ===================== */
+// Default restaurant keeps root paths (existing printed QR codes point there);
+// other tenants get slug-scoped paths.
+function tenantMenuPath(): string {
+  const slug = getCurrentRestaurantSlug();
+  return slug && slug !== DEFAULT_SLUG ? `/r/${slug}` : '/';
+}
+function tenantPrintPath(): string {
+  const slug = getCurrentRestaurantSlug();
+  return slug && slug !== DEFAULT_SLUG
+    ? `${import.meta.env.BASE_URL}r/${slug}/print`
+    : `${import.meta.env.BASE_URL}print`;
+}
+
 /* ===================== QR MODAL ===================== */
 function QRModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [menuUrl, setMenuUrl] = useState(window.location.origin + '/');
+  const [menuUrl, setMenuUrl] = useState(window.location.origin + tenantMenuPath());
   const qrRef = useRef<HTMLCanvasElement>(null);
   const [qrGenerated, setQrGenerated] = useState(false);
 
@@ -144,7 +161,7 @@ function ThemeTab() {
   const [loadingTheme, setLoadingTheme] = useState(true);
 
   useEffect(() => {
-    fetchThemeSettings().then(t => { setTheme(t); setLoadingTheme(false); }).catch(() => setLoadingTheme(false));
+    fetchAdminThemeSettings().then(t => { setTheme(t); setLoadingTheme(false); }).catch(() => setLoadingTheme(false));
   }, []);
 
   const handleSave = async () => {
@@ -654,7 +671,7 @@ export default function AdminPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" className="border-primary text-primary hover:bg-primary/10 gap-1.5 text-xs" onClick={() => window.open(`${import.meta.env.BASE_URL}print`, '_blank')}>
+          <Button size="sm" variant="outline" className="border-primary text-primary hover:bg-primary/10 gap-1.5 text-xs" onClick={() => window.open(tenantPrintPath(), '_blank')}>
             <Printer className="w-3.5 h-3.5" />طباعة المينو
           </Button>
           <Button size="sm" variant="outline" className="border-primary text-primary hover:bg-primary/10 gap-1.5 text-xs" onClick={() => setQrOpen(true)}>

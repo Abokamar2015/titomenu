@@ -9,8 +9,13 @@ import {
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
+import { restaurantsTable } from "./restaurants";
+
 export const menuItemsTable = pgTable("menu_items", {
   id: uuid("id").primaryKey().defaultRandom(),
+  restaurantId: uuid("restaurant_id")
+    .notNull()
+    .references(() => restaurantsTable.id, { onDelete: "cascade" }),
   nameAr: text("name_ar").notNull(),
   nameEn: text("name_en").notNull(),
   descriptionAr: text("description_ar").notNull().default(""),

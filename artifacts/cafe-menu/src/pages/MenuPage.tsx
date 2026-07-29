@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { fetchPublicMenuItems, fetchThemeSettings, fetchCategories } from '@/lib/supabase';
+import { useParams } from 'wouter';
+import { fetchPublicMenuItems, fetchThemeSettings, fetchPublicCategories } from '@/lib/supabase';
 import type { MenuItem, ThemeSettings, Category } from '@/lib/supabase';
 import { springPresets } from '@/lib/motion';
 
@@ -34,15 +35,19 @@ export default function MenuPage() {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const tabsRef = useRef<HTMLDivElement>(null);
 
+  const params = useParams<{ slug?: string }>();
+  const slug = params.slug;
+
   useEffect(() => {
-    Promise.all([fetchPublicMenuItems(), fetchThemeSettings(), fetchCategories()])
+    setLoading(true);
+    Promise.all([fetchPublicMenuItems(slug), fetchThemeSettings(slug), fetchPublicCategories(slug)])
       .then(([menuItems, themeData, cats]) => {
         setItems(menuItems);
         setTheme(themeData);
         setCategories(cats);
         if (cats.length > 0) setActiveCategory(cats[0].key);
       }).catch(console.error).finally(() => setLoading(false));
-  }, []);
+  }, [slug]);
 
   useEffect(() => {
     if (!tabsRef.current || !activeCategory) return;
@@ -94,7 +99,7 @@ export default function MenuPage() {
         </div>
 
         {/* Print Menu Button */}
-        <a href={`${import.meta.env.BASE_URL}print`}
+        <a href={slug ? `${import.meta.env.BASE_URL}r/${slug}/print` : `${import.meta.env.BASE_URL}print`}
           className="absolute top-3 start-3 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95"
           style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)', color: '#fff' }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">

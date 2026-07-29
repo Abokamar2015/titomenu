@@ -1,17 +1,26 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod/v4";
-import { eq, asc, sql } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 import {
   db,
   menuItemsTable,
   categoriesTable,
   settingsTable,
+  restaurantsTable,
   type MenuItem,
   type Category,
 } from "@workspace/db";
-import { requireAuth } from "../lib/auth";
+import {
+  requireUser,
+  requireRestaurantRole,
+  type AuthedRequest,
+} from "../lib/auth";
 
 const router: IRouter = Router();
+
+export function getDefaultSlug(): string {
+  return process.env.DEFAULT_RESTAURANT_SLUG?.trim() || "and-co";
+}
 
 function paramStr(raw: string | string[]): string {
   return Array.isArray(raw) ? raw[0] : raw;
@@ -107,145 +116,341 @@ function catToDb(b: CatInsert | CatUpdate) {
   return out;
 }
 
-// ===== MENU ITEMS =====
-router.get("/menu/items", async (req, res): Promise<void> => {
-  const onlyAvailable = req.query.available === "true";
+// ===== shared read handlers (scoped to a restaurant id) =====
+async function listItems(restaurantId: string, onlyAvailable: boolean) {
   const rows = await db
     .select()
     .from(menuItemsTable)
+    .where(eq(menuItemsTable.restaurantId, restaurantId))
     .orderBy(asc(menuItemsTable.category), asc(menuItemsTable.sortOrder));
-  const filtered = onlyAvailable ? rows.filter((r) => r.isAvailable) : rows;
-  res.json(filtered.map(itemToApi));
-});
-
-router.post("/menu/items", requireAuth, async (req, res): Promise<void> => {
-  const parsed = itemInsert.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const [row] = await db
-    .insert(menuItemsTable)
-    .values(itemToDb(parsed.data) as typeof menuItemsTable.$inferInsert)
-    .returning();
-  res.status(201).json(itemToApi(row));
-});
-
-router.patch("/menu/items/sort-orders", requireAuth, async (req, res): Promise<void> => {
-  const schema = z.object({
-    updates: z.array(
-      z.object({ id: z.string(), sort_order: z.number().int() }),
-    ),
-  });
-  const parsed = schema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  await Promise.all(
-    parsed.data.updates.map(({ id, sort_order }) =>
-      db
-        .update(menuItemsTable)
-        .set({ sortOrder: sort_order })
-        .where(eq(menuItemsTable.id, id)),
-    ),
+  return (onlyAvailable ? rows.filter((r) => r.isAvailable) : rows).map(
+    itemToApi,
   );
-  res.sendStatus(204);
-});
+}
 
-router.patch("/menu/items/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = paramStr(req.params.id);
-  const parsed = itemUpdate.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const [row] = await db
-    .update(menuItemsTable)
-    .set(itemToDb(parsed.data))
-    .where(eq(menuItemsTable.id, id))
-    .returning();
-  if (!row) {
-    res.status(404).json({ error: "Item not found" });
-    return;
-  }
-  res.json(itemToApi(row));
-});
-
-router.delete("/menu/items/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = paramStr(req.params.id);
-  await db.delete(menuItemsTable).where(eq(menuItemsTable.id, id));
-  res.sendStatus(204);
-});
-
-// ===== CATEGORIES =====
-router.get("/menu/categories", async (_req, res): Promise<void> => {
+async function listCategories(restaurantId: string) {
   const rows = await db
     .select()
     .from(categoriesTable)
+    .where(eq(categoriesTable.restaurantId, restaurantId))
     .orderBy(asc(categoriesTable.sortOrder));
-  res.json(rows.map(catToApi));
-});
+  return rows.map(catToApi);
+}
 
-router.post("/menu/categories", requireAuth, async (req, res): Promise<void> => {
-  const parsed = catInsert.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+async function listSettings(restaurantId: string) {
+  const rows = await db
+    .select()
+    .from(settingsTable)
+    .where(eq(settingsTable.restaurantId, restaurantId));
+  return rows.map((r) => ({ key: r.key, value: r.value }));
+}
+
+async function findActiveRestaurantBySlug(slug: string) {
+  const [r] = await db
+    .select()
+    .from(restaurantsTable)
+    .where(
+      and(eq(restaurantsTable.slug, slug), eq(restaurantsTable.isActive, true)),
+    );
+  return r;
+}
+
+// =====================================================================
+// PUBLIC routes (no auth): /public/:slug/...
+// =====================================================================
+router.get("/public/:slug/restaurant", async (req, res): Promise<void> => {
+  const r = await findActiveRestaurantBySlug(paramStr(req.params.slug));
+  if (!r) {
+    res.status(404).json({ error: "Restaurant not found" });
     return;
   }
-  const [row] = await db
-    .insert(categoriesTable)
-    .values(catToDb(parsed.data) as typeof categoriesTable.$inferInsert)
-    .returning();
-  res.status(201).json(catToApi(row));
+  res.json({ id: r.id, slug: r.slug, name_ar: r.nameAr, name_en: r.nameEn });
 });
 
-router.patch("/menu/categories/:key", requireAuth, async (req, res): Promise<void> => {
-  const key = paramStr(req.params.key);
-  const parsed = catUpdate.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+router.get("/public/:slug/items", async (req, res): Promise<void> => {
+  const r = await findActiveRestaurantBySlug(paramStr(req.params.slug));
+  if (!r) {
+    res.status(404).json({ error: "Restaurant not found" });
     return;
   }
-  const [row] = await db
-    .update(categoriesTable)
-    .set(catToDb(parsed.data))
-    .where(eq(categoriesTable.key, key))
-    .returning();
-  if (!row) {
-    res.status(404).json({ error: "Category not found" });
+  res.json(await listItems(r.id, req.query.available === "true"));
+});
+
+router.get("/public/:slug/categories", async (req, res): Promise<void> => {
+  const r = await findActiveRestaurantBySlug(paramStr(req.params.slug));
+  if (!r) {
+    res.status(404).json({ error: "Restaurant not found" });
     return;
   }
-  res.json(catToApi(row));
+  res.json(await listCategories(r.id));
 });
 
-router.delete("/menu/categories/:key", requireAuth, async (req, res): Promise<void> => {
-  const key = paramStr(req.params.key);
-  await db.delete(categoriesTable).where(eq(categoriesTable.key, key));
-  res.sendStatus(204);
+router.get("/public/:slug/settings", async (req, res): Promise<void> => {
+  const r = await findActiveRestaurantBySlug(paramStr(req.params.slug));
+  if (!r) {
+    res.status(404).json({ error: "Restaurant not found" });
+    return;
+  }
+  res.json(await listSettings(r.id));
 });
 
-// ===== SETTINGS =====
+// =====================================================================
+// LEGACY public routes — serve the default restaurant so existing QR
+// codes and old clients keep working: /menu/items, /menu/categories,
+// /menu/settings (read-only).
+// =====================================================================
+async function defaultRestaurantId(res: Response): Promise<string | null> {
+  const r = await findActiveRestaurantBySlug(getDefaultSlug());
+  if (!r) {
+    res.status(404).json({ error: "Default restaurant not found" });
+    return null;
+  }
+  return r.id;
+}
+
+router.get("/menu/items", async (req, res): Promise<void> => {
+  const rid = await defaultRestaurantId(res);
+  if (!rid) return;
+  res.json(await listItems(rid, req.query.available === "true"));
+});
+
+router.get("/menu/categories", async (_req, res): Promise<void> => {
+  const rid = await defaultRestaurantId(res);
+  if (!rid) return;
+  res.json(await listCategories(rid));
+});
+
 router.get("/menu/settings", async (_req, res): Promise<void> => {
-  const rows = await db.select().from(settingsTable);
-  res.json(rows.map((r) => ({ key: r.key, value: r.value })));
+  const rid = await defaultRestaurantId(res);
+  if (!rid) return;
+  res.json(await listSettings(rid));
 });
 
-router.put("/menu/settings/:key", requireAuth, async (req, res): Promise<void> => {
-  const key = paramStr(req.params.key);
-  const parsed = z.object({ value: z.string() }).safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  await db
-    .insert(settingsTable)
-    .values({ key, value: parsed.data.value })
-    .onConflictDoUpdate({
-      target: settingsTable.key,
-      set: { value: parsed.data.value },
+// =====================================================================
+// TENANT ADMIN routes: /restaurants/:restaurantId/menu/...
+// Menu writes: owner, manager, staff. Settings writes: owner, manager.
+// =====================================================================
+const canEditMenu = [
+  requireUser,
+  requireRestaurantRole("owner", "manager", "staff"),
+] as const;
+const canEditSettings = [
+  requireUser,
+  requireRestaurantRole("owner", "manager"),
+] as const;
+
+function rid(req: Request): string {
+  return paramStr(req.params.restaurantId);
+}
+
+// ----- items -----
+router.get(
+  "/restaurants/:restaurantId/menu/items",
+  ...canEditMenu,
+  async (req: AuthedRequest, res): Promise<void> => {
+    res.json(await listItems(rid(req), req.query.available === "true"));
+  },
+);
+
+router.post(
+  "/restaurants/:restaurantId/menu/items",
+  ...canEditMenu,
+  async (req: AuthedRequest, res): Promise<void> => {
+    const parsed = itemInsert.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [row] = await db
+      .insert(menuItemsTable)
+      .values({
+        ...(itemToDb(parsed.data) as typeof menuItemsTable.$inferInsert),
+        restaurantId: rid(req),
+      })
+      .returning();
+    res.status(201).json(itemToApi(row));
+  },
+);
+
+// NOTE: must stay before /menu/items/:id
+router.patch(
+  "/restaurants/:restaurantId/menu/items/sort-orders",
+  ...canEditMenu,
+  async (req: AuthedRequest, res): Promise<void> => {
+    const schema = z.object({
+      updates: z.array(
+        z.object({ id: z.string(), sort_order: z.number().int() }),
+      ),
     });
-  res.sendStatus(204);
-});
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    await Promise.all(
+      parsed.data.updates.map(({ id, sort_order }) =>
+        db
+          .update(menuItemsTable)
+          .set({ sortOrder: sort_order })
+          .where(
+            and(
+              eq(menuItemsTable.id, id),
+              eq(menuItemsTable.restaurantId, rid(req)),
+            ),
+          ),
+      ),
+    );
+    res.sendStatus(204);
+  },
+);
+
+router.patch(
+  "/restaurants/:restaurantId/menu/items/:id",
+  ...canEditMenu,
+  async (req: AuthedRequest, res): Promise<void> => {
+    const id = paramStr(req.params.id);
+    const parsed = itemUpdate.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [row] = await db
+      .update(menuItemsTable)
+      .set(itemToDb(parsed.data))
+      .where(
+        and(
+          eq(menuItemsTable.id, id),
+          eq(menuItemsTable.restaurantId, rid(req)),
+        ),
+      )
+      .returning();
+    if (!row) {
+      res.status(404).json({ error: "Item not found" });
+      return;
+    }
+    res.json(itemToApi(row));
+  },
+);
+
+router.delete(
+  "/restaurants/:restaurantId/menu/items/:id",
+  ...canEditMenu,
+  async (req: AuthedRequest, res): Promise<void> => {
+    const id = paramStr(req.params.id);
+    await db
+      .delete(menuItemsTable)
+      .where(
+        and(
+          eq(menuItemsTable.id, id),
+          eq(menuItemsTable.restaurantId, rid(req)),
+        ),
+      );
+    res.sendStatus(204);
+  },
+);
+
+// ----- categories -----
+router.get(
+  "/restaurants/:restaurantId/menu/categories",
+  ...canEditMenu,
+  async (req: AuthedRequest, res): Promise<void> => {
+    res.json(await listCategories(rid(req)));
+  },
+);
+
+router.post(
+  "/restaurants/:restaurantId/menu/categories",
+  ...canEditMenu,
+  async (req: AuthedRequest, res): Promise<void> => {
+    const parsed = catInsert.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [row] = await db
+      .insert(categoriesTable)
+      .values({
+        ...(catToDb(parsed.data) as typeof categoriesTable.$inferInsert),
+        restaurantId: rid(req),
+      })
+      .returning();
+    res.status(201).json(catToApi(row));
+  },
+);
+
+router.patch(
+  "/restaurants/:restaurantId/menu/categories/:key",
+  ...canEditMenu,
+  async (req: AuthedRequest, res): Promise<void> => {
+    const key = paramStr(req.params.key);
+    const parsed = catUpdate.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [row] = await db
+      .update(categoriesTable)
+      .set(catToDb(parsed.data))
+      .where(
+        and(
+          eq(categoriesTable.key, key),
+          eq(categoriesTable.restaurantId, rid(req)),
+        ),
+      )
+      .returning();
+    if (!row) {
+      res.status(404).json({ error: "Category not found" });
+      return;
+    }
+    res.json(catToApi(row));
+  },
+);
+
+router.delete(
+  "/restaurants/:restaurantId/menu/categories/:key",
+  ...canEditMenu,
+  async (req: AuthedRequest, res): Promise<void> => {
+    const key = paramStr(req.params.key);
+    await db
+      .delete(categoriesTable)
+      .where(
+        and(
+          eq(categoriesTable.key, key),
+          eq(categoriesTable.restaurantId, rid(req)),
+        ),
+      );
+    res.sendStatus(204);
+  },
+);
+
+// ----- settings -----
+router.get(
+  "/restaurants/:restaurantId/menu/settings",
+  ...canEditMenu,
+  async (req: AuthedRequest, res): Promise<void> => {
+    res.json(await listSettings(rid(req)));
+  },
+);
+
+router.put(
+  "/restaurants/:restaurantId/menu/settings/:key",
+  ...canEditSettings,
+  async (req: AuthedRequest, res): Promise<void> => {
+    const key = paramStr(req.params.key);
+    const parsed = z.object({ value: z.string() }).safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    await db
+      .insert(settingsTable)
+      .values({ restaurantId: rid(req), key, value: parsed.data.value })
+      .onConflictDoUpdate({
+        target: [settingsTable.restaurantId, settingsTable.key],
+        set: { value: parsed.data.value },
+      });
+    res.sendStatus(204);
+  },
+);
 
 export default router;

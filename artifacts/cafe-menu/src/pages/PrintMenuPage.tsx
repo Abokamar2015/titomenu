@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { fetchPublicMenuItems, fetchCategories, type MenuItem, type Category } from '@/lib/supabase';
+import { useParams } from 'wouter';
+import { fetchPublicMenuItems, fetchPublicCategories, type MenuItem, type Category } from '@/lib/supabase';
 import cartBg from '@assets/WhatsApp_Image_2025-12-05_at_18.18.50_61f8547f_1780513767603.jpg';
 
 const LOGO = `${import.meta.env.BASE_URL}images/LOGO.png`;
@@ -17,16 +18,19 @@ export default function PrintMenuPage() {
   const [items, setItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const params = useParams<{ slug?: string }>();
+  const slug = params.slug;
 
   useEffect(() => {
-    Promise.all([fetchPublicMenuItems(), fetchCategories()])
+    setLoading(true);
+    Promise.all([fetchPublicMenuItems(slug), fetchPublicCategories(slug)])
       .then(([menuItems, cats]) => {
         setItems(menuItems);
         setCategories(cats);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  }, [slug]);
 
   const drinkCats = categories.filter(c => isDrinkCategory(c.key, c.name_ar));
 
