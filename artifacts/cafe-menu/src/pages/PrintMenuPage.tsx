@@ -34,6 +34,12 @@ export default function PrintMenuPage() {
       .finally(() => setLoading(false));
   }, [slug]);
 
+  // Per-restaurant background: the restaurant's own cover image, or the
+  // legacy & Co. cart photo only for the default (& Co.) menu. Other
+  // restaurants without a cover get a clean paper background (no photo).
+  const isDefaultRestaurant = !slug || slug === 'and-co';
+  const bgUrl = settings['cover_url'] || (isDefaultRestaurant ? cartBg : '');
+
   const drinkCats = categories.filter(c => isDrinkCategory(c.key, c.name_ar));
 
   const hotCat = drinkCats.find(c => c.key.toLowerCase().includes('hot') || c.name_ar?.includes('ساخن'));
@@ -81,11 +87,11 @@ export default function PrintMenuPage() {
           overflow: hidden;
         }
 
-        /* Cart background watermark */
+        /* Restaurant background watermark */
         .bg-photo {
           position: absolute;
           inset: 0;
-          background-image: url(${cartBg});
+          ${bgUrl ? `background-image: url(${bgUrl});` : ''}
           background-size: cover;
           background-position: center 65%;
           opacity: 0.28;
@@ -318,7 +324,7 @@ export default function PrintMenuPage() {
 
       <div className="screen-wrap">
         <div className="page">
-          <div className="bg-photo" />
+          {bgUrl && <div className="bg-photo" />}
           <div className="bg-veil" />
           <div className="frame-outer" />
           <div className="frame-inner" />
