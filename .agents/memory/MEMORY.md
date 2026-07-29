@@ -1,2 +1,3 @@
 - [Backend on Supabase](supabase-to-replit-migration.md) — DB+images now on Supabase (pooler only, pw override via SUPABASE_DB_PASSWORD); Railway Dockerfile deploy; keep supabase.ts filename + snake_case wire shapes.
-- [cafe-menu admin auth](cafe-menu-admin-auth.md) — server-side token auth; every write needs requireAuth, GETs stay public, client must logout on 401.
+- [cafe-menu admin auth](cafe-menu-admin-auth.md) — server-side token auth; every write needs auth middleware, public GETs stay open, client must logout on 401.
+- [Multi-tenant Stage 0](multi-tenant-stage0.md) — additive schema only (restaurant_id DB defaults must stay while old prod runs); legacy /api/menu/* serves default slug; avoid blind drizzle push.

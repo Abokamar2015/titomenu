@@ -1,6 +1,10 @@
-# & Co. Coffee Shop Menu
+# TitoMenu — Multi-Tenant Restaurant Menu Platform
 
-A bilingual (Arabic/English) digital menu app for "& Co. Coffee Shop & Pop Up" with a public menu page and password-protected admin panel.
+Started as a bilingual (Arabic/English) digital menu for "& Co. Coffee Shop & Pop Up"; now a multi-tenant SaaS foundation (Stage 0):
+- **Auth**: email+password accounts (`users` table, scrypt hashes), HMAC tokens signed with `SESSION_SECRET`. Seeded: `admin@titomenu.com` (super admin), `owner@titomenu.com` (& Co. owner) — initial password = `ADMIN_PASSWORD` env.
+- **Tenancy**: `restaurants` (unique slug), `memberships` (role: owner/manager/staff), `branches`. All menu tables carry `restaurant_id` with DB default = & Co.'s id (`a0000000-0000-4000-8000-000000000001`) so the old deployed code keeps working. categories/settings PK = (restaurant_id, key).
+- **API**: public `/api/public/:slug/{restaurant,items,categories,settings}`; legacy read-only `/api/menu/*` → default restaurant (env `DEFAULT_RESTAURANT_SLUG`, default `and-co`) so printed QR codes stay valid; tenant admin `/api/restaurants/:rid/menu/*` + `/api/restaurants/:rid/storage/uploads/request-url` (membership-checked); super admin `/api/sa/{restaurants,stats}`.
+- **Frontend**: `/r/:slug` and `/r/:slug/print` public routes; root `/` serves the default restaurant; login is email+password; admin calls scoped by restaurant id from memberships (sessionStorage).
 
 ## Run & Operate
 
