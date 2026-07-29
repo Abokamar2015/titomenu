@@ -125,7 +125,7 @@ function CreateRestaurantDialog({ open, onClose, onCreated }: { open: boolean; o
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="dark bg-card border-border max-w-md max-h-[90vh] overflow-y-auto" dir="rtl">
+      <DialogContent className="dark bg-card border-border text-foreground max-w-md max-h-[90vh] overflow-y-auto" dir="rtl">
         <DialogHeader><DialogTitle className="text-foreground flex items-center gap-2"><Plus className="w-5 h-5 text-primary" />إضافة مطعم جديد</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
@@ -199,7 +199,7 @@ function EditRestaurantDialog({ restaurant, onClose, onSaved }: { restaurant: Sa
 
   return (
     <Dialog open={!!restaurant} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="dark bg-card border-border max-w-sm" dir="rtl">
+      <DialogContent className="dark bg-card border-border text-foreground max-w-sm" dir="rtl">
         <DialogHeader><DialogTitle className="text-foreground flex items-center gap-2"><Pencil className="w-5 h-5 text-primary" />تعديل بيانات المطعم</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
@@ -315,7 +315,7 @@ function RestaurantSettingsDialog({ restaurant, onClose }: { restaurant: SaResta
 
   return (
     <Dialog open={!!restaurant} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="dark bg-card border-border max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
+      <DialogContent className="dark bg-card border-border text-foreground max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
           <DialogTitle className="text-foreground flex items-center gap-2">
             <Settings2 className="w-5 h-5 text-primary" />إعدادات {restaurant?.name_ar}
@@ -582,7 +582,7 @@ export default function SuperAdminPage() {
       <RestaurantQRDialog restaurant={qrTarget} onClose={() => setQrTarget(null)} />
 
       <AlertDialog open={!!toggleTarget} onOpenChange={v => !v && setToggleTarget(null)}>
-        <AlertDialogContent className="dark bg-card border-border" dir="rtl">
+        <AlertDialogContent className="dark bg-card border-border text-foreground" dir="rtl">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-foreground">
               {toggleTarget?.is_active ? 'إيقاف المطعم؟' : 'تفعيل المطعم؟'}

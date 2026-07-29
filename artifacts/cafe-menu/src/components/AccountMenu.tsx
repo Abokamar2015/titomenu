@@ -20,7 +20,7 @@ function ProfileDialog({ open, onClose }: { open: boolean; onClose: () => void }
   const membership = getCurrentMembership();
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="dark bg-card border-border max-w-sm" dir="rtl">
+      <DialogContent className="dark bg-card border-border text-foreground max-w-sm" dir="rtl">
         <DialogHeader><DialogTitle className="text-foreground flex items-center gap-2"><UserCircle className="w-5 h-5 text-primary" />الملف الشخصي</DialogTitle></DialogHeader>
         <div className="space-y-3 text-sm">
           <div className="flex justify-between items-center border-b border-border pb-2">
@@ -72,7 +72,7 @@ function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose: () =>
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) { reset(); onClose(); } }}>
-      <DialogContent className="dark bg-card border-border max-w-sm" dir="rtl">
+      <DialogContent className="dark bg-card border-border text-foreground max-w-sm" dir="rtl">
         <DialogHeader><DialogTitle className="text-foreground flex items-center gap-2"><KeyRound className="w-5 h-5 text-primary" />تغيير كلمة المرور</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="space-y-1.5">
