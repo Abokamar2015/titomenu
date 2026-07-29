@@ -1,51 +1,14 @@
 // Shared account dropdown for admin surfaces (tenant admin + platform admin).
 import { useState } from 'react';
+import { useLocation } from 'wouter';
 import { toast } from 'sonner';
 import { UserCircle, KeyRound, LogOut, Loader2 } from 'lucide-react';
-import { getCurrentUser, getCurrentMembership, changePassword } from '@/lib/supabase';
+import { getCurrentUser, changePassword } from '@/lib/supabase';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
-const ROLE_LABELS: Record<string, string> = {
-  owner: 'مالك',
-  manager: 'مدير',
-  staff: 'موظف',
-};
-
-function ProfileDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const user = getCurrentUser();
-  const membership = getCurrentMembership();
-  return (
-    <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="dark bg-card border-border text-foreground max-w-sm" dir="rtl">
-        <DialogHeader><DialogTitle className="text-foreground flex items-center gap-2"><UserCircle className="w-5 h-5 text-primary" />الملف الشخصي</DialogTitle></DialogHeader>
-        <div className="space-y-3 text-sm">
-          <div className="flex justify-between items-center border-b border-border pb-2">
-            <span className="text-muted-foreground">الاسم</span>
-            <span className="text-foreground font-medium">{user?.name || '—'}</span>
-          </div>
-          <div className="flex justify-between items-center border-b border-border pb-2">
-            <span className="text-muted-foreground">البريد الإلكتروني</span>
-            <span className="text-foreground font-medium" dir="ltr">{user?.email || '—'}</span>
-          </div>
-          <div className="flex justify-between items-center border-b border-border pb-2">
-            <span className="text-muted-foreground">الدور</span>
-            <span className="text-foreground font-medium">{user?.is_super_admin ? 'مدير المنصة' : (membership ? ROLE_LABELS[membership.role] ?? membership.role : '—')}</span>
-          </div>
-          {membership && !user?.is_super_admin && (
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">المطعم</span>
-              <span className="text-foreground font-medium">{membership.name_ar}</span>
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [current, setCurrent] = useState('');
@@ -101,7 +64,7 @@ function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose: () =>
 }
 
 export default function AccountMenu({ onLogout, extraItems }: { onLogout: () => void; extraItems?: React.ReactNode }) {
-  const [profileOpen, setProfileOpen] = useState(false);
+  const [, navigate] = useLocation();
   const [passwordOpen, setPasswordOpen] = useState(false);
   const user = getCurrentUser();
   return (
@@ -109,12 +72,16 @@ export default function AccountMenu({ onLogout, extraItems }: { onLogout: () => 
       <DropdownMenu dir="rtl">
         <DropdownMenuTrigger asChild>
           <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-foreground gap-1.5 text-xs px-2">
-            <UserCircle className="w-4 h-4" />
+            {user?.avatar_url ? (
+              <img src={user.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+            ) : (
+              <UserCircle className="w-4 h-4" />
+            )}
             <span className="hidden sm:inline max-w-[140px] truncate" dir="ltr">{user?.email ?? 'الحساب'}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="dark bg-card border-border min-w-[200px]" align="end">
-          <DropdownMenuItem onClick={() => setProfileOpen(true)} className="gap-2 text-foreground">
+          <DropdownMenuItem onClick={() => navigate('/profile')} className="gap-2 text-foreground">
             <UserCircle className="w-4 h-4" />الملف الشخصي
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setPasswordOpen(true)} className="gap-2 text-foreground">
@@ -127,7 +94,6 @@ export default function AccountMenu({ onLogout, extraItems }: { onLogout: () => 
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <ProfileDialog open={profileOpen} onClose={() => setProfileOpen(false)} />
       <ChangePasswordDialog open={passwordOpen} onClose={() => setPasswordOpen(false)} />
     </>
   );

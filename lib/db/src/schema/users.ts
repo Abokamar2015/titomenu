@@ -6,6 +6,8 @@ export const usersTable = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   name: text("name").notNull().default(""),
   isSuperAdmin: boolean("is_super_admin").notNull().default(false),
+  avatarUrl: text("avatar_url"),
+  lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

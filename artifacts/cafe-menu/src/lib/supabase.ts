@@ -16,6 +16,9 @@ export interface SessionUser {
   email: string;
   name: string;
   is_super_admin: boolean;
+  avatar_url?: string | null;
+  created_at?: string | null;
+  last_login_at?: string | null;
 }
 
 export interface MembershipInfo {
@@ -135,6 +138,74 @@ export async function changePassword(
   if (res.status === 401) return "كلمة المرور الحالية غير صحيحة";
   if (res.status === 400) return "كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل";
   return "حدث خطأ، حاول مرة أخرى";
+}
+
+/**
+ * Update the current user's profile (name / email / avatar).
+ * Returns the updated user on success, or an Arabic error message string.
+ */
+export async function updateProfile(updates: {
+  name?: string;
+  email?: string;
+  avatar_url?: string;
+  current_password?: string;
+}): Promise<SessionUser | string> {
+  const res = await fetch(`${API}/auth/me`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(updates),
+  });
+  if (res.status === 409) return "البريد الإلكتروني مستخدم من حساب آخر";
+  if (res.status === 403) return "كلمة المرور غير صحيحة — مطلوبة لتغيير البريد الإلكتروني";
+  if (res.status === 400) return "بيانات غير صالحة — تأكد من صحة البريد الإلكتروني";
+  if (res.status === 401) {
+    logout();
+    return "انتهت الجلسة، سجّل الدخول مجددًا";
+  }
+  if (!res.ok) return "حدث خطأ، حاول مرة أخرى";
+  const data = (await res.json()) as { user: SessionUser };
+  sessionStorage.setItem(USER_KEY, JSON.stringify(data.user));
+  return data.user;
+}
+
+/** Refresh the stored session user from the server. */
+export async function refreshSessionUser(): Promise<SessionUser | null> {
+  try {
+    const data = await apiFetch<{ user: SessionUser }>(`/auth/me`);
+    sessionStorage.setItem(USER_KEY, JSON.stringify(data.user));
+    return data.user;
+  } catch {
+    return null;
+  }
+}
+
+/** Upload a profile avatar image; returns its public object path. */
+export async function uploadAvatar(file: File): Promise<string> {
+  const reqRes = await fetch(`${API}/me/storage/uploads/request-url`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({
+      name: file.name,
+      size: file.size,
+      contentType: file.type,
+    }),
+  });
+  if (reqRes.status === 401) {
+    logout();
+    throw new Error("unauthorized");
+  }
+  if (!reqRes.ok) throw new Error(`Failed to request upload URL: ${reqRes.status}`);
+  const { uploadURL, objectPath } = (await reqRes.json()) as {
+    uploadURL: string;
+    objectPath: string;
+  };
+  const putRes = await fetch(uploadURL, {
+    method: "PUT",
+    body: file,
+    headers: { "Content-Type": file.type || "application/octet-stream" },
+  });
+  if (!putRes.ok) throw new Error(`Upload failed: ${putRes.status}`);
+  return `${API}/storage${objectPath}`;
 }
 
 function authHeaders(): Record<string, string> {

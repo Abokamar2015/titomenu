@@ -4,6 +4,7 @@ import MenuPage from "@/pages/MenuPage";
 import AdminPage from "@/pages/AdminPage";
 import PrintMenuPage from "@/pages/PrintMenuPage";
 import SuperAdminPage from "@/pages/SuperAdminPage";
+import ProfilePage from "@/pages/ProfilePage";
 
 function Router() {
   return (
@@ -14,6 +15,7 @@ function Router() {
       <Route path="/r/:slug/print" component={PrintMenuPage} />
       <Route path="/admin" component={AdminPage} />
       <Route path="/sa" component={SuperAdminPage} />
+      <Route path="/profile" component={ProfilePage} />
       <Route path="/print" component={PrintMenuPage} />
       <Route>
         <div className="min-h-screen flex items-center justify-center bg-[#111] text-white">

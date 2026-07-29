@@ -2,7 +2,11 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { Readable } from "stream";
 import { z } from "zod/v4";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
-import { requireUser, requireRestaurantRole } from "../lib/auth";
+import {
+  requireUser,
+  requireRestaurantRole,
+  type AuthedRequest,
+} from "../lib/auth";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -46,6 +50,61 @@ router.post(
     res.status(500).json({ error: "Failed to generate upload URL" });
   }
 });
+
+/**
+ * POST /me/storage/uploads/request-url
+ *
+ * Signed upload URL for the caller's own profile avatar. Requires only an
+ * authenticated user (no restaurant membership — super admins included).
+ */
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+const AVATAR_MIME = /^image\/(png|jpe?g|webp|gif|avif)$/i;
+// Naive in-memory per-user rate limit for avatar upload URL issuance.
+const avatarUploadHits = new Map<string, { count: number; resetAt: number }>();
+function avatarRateLimited(userId: string): boolean {
+  const now = Date.now();
+  const entry = avatarUploadHits.get(userId);
+  if (!entry || now > entry.resetAt) {
+    avatarUploadHits.set(userId, { count: 1, resetAt: now + 60 * 60 * 1000 });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > 20; // max 20 URL requests per hour per user
+}
+
+router.post(
+  "/me/storage/uploads/request-url",
+  requireUser,
+  async (req: AuthedRequest, res: Response) => {
+    const parsed = RequestUploadUrlBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Missing or invalid required fields" });
+      return;
+    }
+    const { size, contentType } = parsed.data;
+    if (!contentType || !AVATAR_MIME.test(contentType)) {
+      res.status(400).json({ error: "Only image uploads are allowed" });
+      return;
+    }
+    if (!size || size <= 0 || size > AVATAR_MAX_BYTES) {
+      res.status(400).json({ error: "Image must be 5MB or smaller" });
+      return;
+    }
+    if (avatarRateLimited(req.user!.id)) {
+      res.status(429).json({ error: "Too many uploads, try again later" });
+      return;
+    }
+    try {
+      const { name } = parsed.data;
+      const { uploadURL, objectPath } =
+        await objectStorageService.createSignedUpload();
+      res.json({ uploadURL, objectPath, metadata: { name, size, contentType } });
+    } catch (error) {
+      req.log.error({ err: error }, "Error generating avatar upload URL");
+      res.status(500).json({ error: "Failed to generate upload URL" });
+    }
+  },
+);
 
 function proxyObject(key: string) {
   return async (req: Request, res: Response) => {
