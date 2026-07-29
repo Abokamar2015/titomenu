@@ -35,10 +35,35 @@ function setAuthToken(token: string): void {
   sessionStorage.setItem(TOKEN_KEY, token);
 }
 
+const USER_KEY = "admin_user";
+const MEMBERSHIP_KEY = "admin_membership";
+
 export function logout(): void {
   sessionStorage.removeItem(TOKEN_KEY);
   sessionStorage.removeItem(RESTAURANT_KEY);
   sessionStorage.removeItem(RESTAURANT_SLUG_KEY);
+  sessionStorage.removeItem(USER_KEY);
+  sessionStorage.removeItem(MEMBERSHIP_KEY);
+}
+
+export function getCurrentUser(): SessionUser | null {
+  const raw = sessionStorage.getItem(USER_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as SessionUser;
+  } catch {
+    return null;
+  }
+}
+
+export function getCurrentMembership(): MembershipInfo | null {
+  const raw = sessionStorage.getItem(MEMBERSHIP_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as MembershipInfo;
+  } catch {
+    return null;
+  }
 }
 
 export function isAuthenticated(): boolean {
@@ -76,13 +101,37 @@ export async function login(
   };
   if (!data.token) return null;
   setAuthToken(data.token);
+  sessionStorage.setItem(USER_KEY, JSON.stringify(data.user));
   if (data.memberships.length > 0) {
     setCurrentRestaurant(
       data.memberships[0].restaurant_id,
       data.memberships[0].slug,
     );
+    sessionStorage.setItem(MEMBERSHIP_KEY, JSON.stringify(data.memberships[0]));
   }
   return { user: data.user, memberships: data.memberships };
+}
+
+/**
+ * Change the current user's password.
+ * Returns null on success, or an Arabic error message on failure.
+ */
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<string | null> {
+  const res = await fetch(`${API}/auth/change-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({
+      current_password: currentPassword,
+      new_password: newPassword,
+    }),
+  });
+  if (res.status === 204) return null;
+  if (res.status === 401) return "كلمة المرور الحالية غير صحيحة";
+  if (res.status === 400) return "كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل";
+  return "حدث خطأ، حاول مرة أخرى";
 }
 
 function authHeaders(): Record<string, string> {
