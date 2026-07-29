@@ -168,6 +168,7 @@ router.get(
         (SELECT count(*)::int FROM restaurants) AS restaurants,
         (SELECT count(*)::int FROM restaurants WHERE is_active) AS active_restaurants,
         (SELECT count(*)::int FROM users) AS users,
+        (SELECT count(*)::int FROM branches) AS branches,
         (SELECT count(*)::int FROM menu_items) AS menu_items,
         (SELECT count(*)::int FROM categories) AS categories
     `);

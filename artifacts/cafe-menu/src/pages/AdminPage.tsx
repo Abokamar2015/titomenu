@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import QRCode from 'qrcode';
 import {
-  Plus, Pencil, Trash2, LogOut, QrCode, UserCircle, KeyRound,
+  Plus, Pencil, Trash2, QrCode as QrCodeIcon, LayoutDashboard,
   Download, Coffee, Search, Save, Loader2, Palette, UtensilsCrossed,
   ImagePlus, X as XIcon, Tag, GripVertical, ArrowUpDown, Printer
 } from 'lucide-react';
@@ -15,9 +16,10 @@ import {
   updateSortOrders,
   login, logout, isAuthenticated,
   getCurrentRestaurantSlug, DEFAULT_SLUG,
-  getCurrentUser, getCurrentMembership, changePassword,
+  getCurrentUser, getCurrentRestaurantId,
 } from '@/lib/supabase';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import AccountMenu from '@/components/AccountMenu';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import type { MenuItem, MenuItemInsert, ThemeSettings, Category } from '@/lib/supabase';
 import { springPresets } from '@/lib/motion';
 import { Button } from '@/components/ui/button';
@@ -78,155 +80,29 @@ function tenantPrintPath(): string {
     : `${import.meta.env.BASE_URL}print`;
 }
 
-/* ===================== ACCOUNT MENU ===================== */
-const ROLE_LABELS: Record<string, string> = {
-  owner: 'مالك',
-  manager: 'مدير',
-  staff: 'موظف',
-};
-
-function ProfileDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const user = getCurrentUser();
-  const membership = getCurrentMembership();
-  return (
-    <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="dark bg-card border-border max-w-sm" dir="rtl">
-        <DialogHeader><DialogTitle className="text-foreground flex items-center gap-2"><UserCircle className="w-5 h-5 text-primary" />الملف الشخصي</DialogTitle></DialogHeader>
-        <div className="space-y-3 text-sm">
-          <div className="flex justify-between items-center border-b border-border pb-2">
-            <span className="text-muted-foreground">الاسم</span>
-            <span className="text-foreground font-medium">{user?.name || '—'}</span>
-          </div>
-          <div className="flex justify-between items-center border-b border-border pb-2">
-            <span className="text-muted-foreground">البريد الإلكتروني</span>
-            <span className="text-foreground font-medium" dir="ltr">{user?.email || '—'}</span>
-          </div>
-          <div className="flex justify-between items-center border-b border-border pb-2">
-            <span className="text-muted-foreground">الدور</span>
-            <span className="text-foreground font-medium">{user?.is_super_admin ? 'مدير المنصة' : (membership ? ROLE_LABELS[membership.role] ?? membership.role : '—')}</span>
-          </div>
-          {membership && (
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">المطعم</span>
-              <span className="text-foreground font-medium">{membership.name_ar}</span>
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [current, setCurrent] = useState('');
-  const [next, setNext] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-
-  const reset = () => { setCurrent(''); setNext(''); setConfirm(''); setError(null); };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    if (next.length < 8) { setError('كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل'); return; }
-    if (next !== confirm) { setError('تأكيد كلمة المرور غير مطابق'); return; }
-    setSaving(true);
-    const err = await changePassword(current, next);
-    setSaving(false);
-    if (err) { setError(err); return; }
-    toast.success('تم تغيير كلمة المرور بنجاح');
-    reset();
-    onClose();
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={v => { if (!v) { reset(); onClose(); } }}>
-      <DialogContent className="dark bg-card border-border max-w-sm" dir="rtl">
-        <DialogHeader><DialogTitle className="text-foreground flex items-center gap-2"><KeyRound className="w-5 h-5 text-primary" />تغيير كلمة المرور</DialogTitle></DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">كلمة المرور الحالية</Label>
-            <Input type="password" value={current} onChange={e => setCurrent(e.target.value)} dir="ltr" autoComplete="current-password" required />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">كلمة المرور الجديدة (8 أحرف على الأقل)</Label>
-            <Input type="password" value={next} onChange={e => setNext(e.target.value)} dir="ltr" autoComplete="new-password" required />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">تأكيد كلمة المرور الجديدة</Label>
-            <Input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} dir="ltr" autoComplete="new-password" required />
-          </div>
-          {error && <p className="text-xs text-destructive">{error}</p>}
-          <DialogFooter className="gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => { reset(); onClose(); }} className="border-border">إلغاء</Button>
-            <Button type="submit" disabled={saving} className="bg-primary text-primary-foreground hover:bg-primary/90">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'حفظ'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function AccountMenu({ onLogout }: { onLogout: () => void }) {
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [passwordOpen, setPasswordOpen] = useState(false);
-  const user = getCurrentUser();
-  return (
-    <>
-      <DropdownMenu dir="rtl">
-        <DropdownMenuTrigger asChild>
-          <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-foreground gap-1.5 text-xs px-2">
-            <UserCircle className="w-4 h-4" />
-            <span className="hidden sm:inline max-w-[140px] truncate" dir="ltr">{user?.email ?? 'الحساب'}</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="dark bg-card border-border min-w-[200px]" align="end">
-          <DropdownMenuItem onClick={() => setProfileOpen(true)} className="gap-2 text-foreground">
-            <UserCircle className="w-4 h-4" />الملف الشخصي
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setPasswordOpen(true)} className="gap-2 text-foreground">
-            <KeyRound className="w-4 h-4" />تغيير كلمة المرور
-          </DropdownMenuItem>
-          <DropdownMenuSeparator className="bg-border" />
-          <DropdownMenuItem onClick={onLogout} className="gap-2 text-destructive focus:text-destructive">
-            <LogOut className="w-4 h-4" />تسجيل الخروج
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <ProfileDialog open={profileOpen} onClose={() => setProfileOpen(false)} />
-      <ChangePasswordDialog open={passwordOpen} onClose={() => setPasswordOpen(false)} />
-    </>
-  );
-}
-
 /* ===================== QR MODAL ===================== */
 function QRModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [menuUrl, setMenuUrl] = useState(window.location.origin + tenantMenuPath());
-  const qrRef = useRef<HTMLCanvasElement>(null);
-  const [qrGenerated, setQrGenerated] = useState(false);
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
 
-  useEffect(() => { if (open) { setQrGenerated(false); generateQR(menuUrl); } }, [open]);
+  useEffect(() => { if (open) generateQR(menuUrl); }, [open]);
 
   const generateQR = (url: string) => {
-    const canvas = qrRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.src = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}&bgcolor=0F1F1F&color=E8622A&margin=2`;
-    img.onload = () => { canvas.width = 300; canvas.height = 300; ctx.drawImage(img, 0, 0, 300, 300); setQrGenerated(true); };
+    setDataUrl(null);
+    QRCode.toDataURL(url, {
+      width: 300,
+      margin: 2,
+      color: { dark: '#E8622A', light: '#0F1F1F' },
+    })
+      .then(setDataUrl)
+      .catch(() => toast.error('فشل توليد QR Code'));
   };
 
   const handleDownload = () => {
-    const canvas = qrRef.current;
-    if (!canvas) return;
+    if (!dataUrl) return;
     const link = document.createElement('a');
-    link.download = 'andco-menu-qr.png';
-    link.href = canvas.toDataURL('image/png');
+    link.download = `${getCurrentRestaurantSlug() ?? 'menu'}-qr.png`;
+    link.href = dataUrl;
     link.click();
     toast.success('تم تحميل QR Code!');
   };
@@ -234,19 +110,20 @@ function QRModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="dark bg-card border-border max-w-sm text-foreground" dir="rtl">
-        <DialogHeader><DialogTitle className="text-foreground flex items-center gap-2"><QrCode className="w-5 h-5 text-primary" />QR Code المينيو</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle className="text-foreground flex items-center gap-2"><QrCodeIcon className="w-5 h-5 text-primary" />QR Code المينيو</DialogTitle></DialogHeader>
         <div className="space-y-4">
           <div>
             <Label className="text-muted-foreground text-xs mb-1.5 block">رابط المينيو</Label>
             <div className="flex gap-2">
               <Input value={menuUrl} onChange={e => setMenuUrl(e.target.value)} dir="ltr" className="text-sm" />
-              <Button onClick={() => { setQrGenerated(false); generateQR(menuUrl); }} size="sm" variant="outline" className="border-primary text-primary hover:bg-primary/10 shrink-0">توليد</Button>
+              <Button onClick={() => generateQR(menuUrl)} size="sm" variant="outline" className="border-primary text-primary hover:bg-primary/10 shrink-0">توليد</Button>
             </div>
           </div>
           <div className="flex justify-center">
-            <div className="relative rounded-2xl overflow-hidden border border-border bg-[#0F1F1F] p-2">
-              <canvas ref={qrRef} className="w-[240px] h-[240px]" />
-              {!qrGenerated && <div className="absolute inset-0 flex items-center justify-center bg-card/80"><Loader2 className="w-8 h-8 text-primary animate-spin" /></div>}
+            <div className="relative rounded-2xl overflow-hidden border border-border bg-[#0F1F1F] p-2 w-[256px] h-[256px] flex items-center justify-center">
+              {dataUrl
+                ? <img src={dataUrl} alt="QR Code" className="w-[240px] h-[240px]" />
+                : <Loader2 className="w-8 h-8 text-primary animate-spin" />}
             </div>
           </div>
           <div className="bg-muted/50 rounded-xl p-3 text-xs text-muted-foreground text-center">
@@ -254,7 +131,7 @@ function QRModal({ open, onClose }: { open: boolean; onClose: () => void }) {
           </div>
         </div>
         <DialogFooter>
-          <Button onClick={handleDownload} className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2 w-full">
+          <Button onClick={handleDownload} disabled={!dataUrl} className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2 w-full">
             <Download className="w-4 h-4" />تحميل QR Code
           </Button>
         </DialogFooter>
@@ -722,7 +599,17 @@ export default function AdminPage() {
 
   useEffect(() => { if (authed) load(); }, [authed]);
 
-  if (!authed) return <LoginScreen onLogin={() => setAuthed(true)} />;
+  if (!authed) return (
+    <LoginScreen onLogin={() => {
+      // Super admins without a restaurant membership belong on the platform dashboard.
+      const u = getCurrentUser();
+      if (u?.is_super_admin && !getCurrentRestaurantId()) {
+        window.location.href = `${import.meta.env.BASE_URL}sa`;
+        return;
+      }
+      setAuthed(true);
+    }} />
+  );
 
   const filtered = items.filter(item => {
     const matchCat = activeCategory === 'all' || item.category === activeCategory;
@@ -801,14 +688,21 @@ export default function AdminPage() {
             <Printer className="w-3.5 h-3.5" />طباعة المينو
           </Button>
           <Button size="sm" variant="outline" className="border-primary text-primary hover:bg-primary/10 gap-1.5 text-xs" onClick={() => setQrOpen(true)}>
-            <QrCode className="w-3.5 h-3.5" />QR Code
+            <QrCodeIcon className="w-3.5 h-3.5" />QR Code
           </Button>
           {(activeTab === 'menu' || activeTab === 'categories') && (
             <Button size="sm" onClick={() => { if (activeTab === 'menu') { setEditItem(null); setFormOpen(true); } else { setCatFormOpen(true); setCatEdit(null); } }} className="bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5 text-xs">
               <Plus className="w-3.5 h-3.5" />{activeTab === 'menu' ? 'إضافة صنف' : 'إضافة تصنيف'}
             </Button>
           )}
-          <AccountMenu onLogout={() => { logout(); setAuthed(false); }} />
+          <AccountMenu
+            onLogout={() => { logout(); setAuthed(false); }}
+            extraItems={getCurrentUser()?.is_super_admin ? (
+              <DropdownMenuItem onClick={() => { window.location.href = `${import.meta.env.BASE_URL}sa`; }} className="gap-2 text-foreground">
+                <LayoutDashboard className="w-4 h-4" />لوحة المنصة
+              </DropdownMenuItem>
+            ) : undefined}
+          />
         </div>
       </header>
 

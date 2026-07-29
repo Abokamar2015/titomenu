@@ -100,6 +100,9 @@ export async function login(
     memberships: MembershipInfo[];
   };
   if (!data.token) return null;
+  // Reset all prior session context first so a previous login (e.g. a tenant
+  // admin) never leaks restaurant/membership state into the new session.
+  logout();
   setAuthToken(data.token);
   sessionStorage.setItem(USER_KEY, JSON.stringify(data.user));
   if (data.memberships.length > 0) {
@@ -400,6 +403,117 @@ export async function deleteMenuImage(_imageUrl: string): Promise<void> {
 
 export async function uploadCategoryImage(file: File): Promise<string> {
   return uploadImage(file);
+}
+
+// ===== SUPER ADMIN (platform dashboard) =====
+
+export interface SaRestaurant {
+  id: string;
+  slug: string;
+  name_ar: string;
+  name_en: string;
+  is_active: boolean;
+  created_at: string;
+  item_count: number;
+  members: { email: string; role: string }[];
+}
+
+export interface SaStats {
+  restaurants: number;
+  active_restaurants: number;
+  users: number;
+  branches: number;
+  menu_items: number;
+  categories: number;
+}
+
+export async function fetchSaStats(): Promise<SaStats> {
+  return apiFetch<SaStats>(`/sa/stats`);
+}
+
+export async function fetchSaRestaurants(): Promise<SaRestaurant[]> {
+  return apiFetch<SaRestaurant[]>(`/sa/restaurants`);
+}
+
+export async function saCreateRestaurant(body: {
+  slug: string;
+  name_ar: string;
+  name_en: string;
+  owner_email: string;
+  owner_password: string;
+  owner_name?: string;
+}): Promise<{ id: string; slug: string; owner_email: string }> {
+  return apiFetch(`/sa/restaurants`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function saUpdateRestaurant(
+  id: string,
+  patch: { is_active?: boolean; name_ar?: string; name_en?: string },
+): Promise<void> {
+  await apiFetch(`/sa/restaurants/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+// Restaurant-scoped settings with an explicit restaurant id (super admin can
+// manage any restaurant; regular tenant admins keep using adminBase()).
+export async function fetchRestaurantSettings(
+  restaurantId: string,
+): Promise<Record<string, string>> {
+  const rows = await apiFetch<{ key: string; value: string }[]>(
+    `/restaurants/${restaurantId}/menu/settings`,
+  );
+  const map: Record<string, string> = {};
+  rows.forEach((r) => {
+    map[r.key] = r.value;
+  });
+  return map;
+}
+
+export async function saveRestaurantSetting(
+  restaurantId: string,
+  key: string,
+  value: string,
+): Promise<void> {
+  await apiFetch(
+    `/restaurants/${restaurantId}/menu/settings/${encodeURIComponent(key)}`,
+    { method: "PUT", body: JSON.stringify({ value }) },
+  );
+}
+
+export async function uploadImageForRestaurant(
+  restaurantId: string,
+  file: File,
+): Promise<string> {
+  const reqRes = await fetch(
+    `${API}/restaurants/${restaurantId}/storage/uploads/request-url`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({
+        name: file.name,
+        size: file.size,
+        contentType: file.type,
+      }),
+    },
+  );
+  if (!reqRes.ok)
+    throw new Error(`Failed to request upload URL: ${reqRes.status}`);
+  const { uploadURL, objectPath } = (await reqRes.json()) as {
+    uploadURL: string;
+    objectPath: string;
+  };
+  const putRes = await fetch(uploadURL, {
+    method: "PUT",
+    headers: { "Content-Type": file.type || "application/octet-stream" },
+    body: file,
+  });
+  if (!putRes.ok) throw new Error(`Failed to upload file: ${putRes.status}`);
+  return `${API}/storage${objectPath}`;
 }
 
 // ===== ADMIN CATEGORIES (restaurant-scoped) =====
