@@ -241,6 +241,8 @@ const CONTACT_FIELDS = [
   { key: 'contact_phone', label: 'رقم الهاتف', dir: 'ltr', placeholder: '+966…' },
   { key: 'contact_whatsapp', label: 'واتساب', dir: 'ltr', placeholder: '+966…' },
   { key: 'contact_instagram', label: 'إنستغرام', dir: 'ltr', placeholder: '@username' },
+  { key: 'contact_tiktok', label: 'تيك توك', dir: 'ltr', placeholder: '@username' },
+  { key: 'contact_maps', label: 'رابط الموقع (خرائط جوجل)', dir: 'ltr', placeholder: 'https://maps.app.goo.gl/…' },
 ] as const;
 
 function ImageField({ label, value, uploading, onUpload, onClear }: {
@@ -331,6 +333,11 @@ function RestaurantSettingsDialog({ restaurant, onClose }: { restaurant: SaResta
                 onUpload={file => handleUpload('logo_url', file)} onClear={() => set('logo_url', '')} />
               <ImageField label="صورة الغلاف" value={settings['cover_url'] ?? ''} uploading={uploadingKey === 'cover_url'}
                 onUpload={file => handleUpload('cover_url', file)} onClear={() => set('cover_url', '')} />
+            </div>
+            {/* Description */}
+            <div>
+              <Label className="text-muted-foreground text-xs mb-1 block">الوصف / الشعار النصي (يظهر تحت اسم المطعم في المينيو)</Label>
+              <Input value={settings['description'] ?? ''} onChange={e => set('description', e.target.value)} placeholder="Coffee Shop & Pop Up" />
             </div>
             {/* Colors */}
             <div>

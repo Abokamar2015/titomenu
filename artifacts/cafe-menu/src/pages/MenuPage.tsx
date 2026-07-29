@@ -1,11 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams } from 'wouter';
-import { fetchPublicMenuItems, fetchThemeSettings, fetchPublicCategories } from '@/lib/supabase';
-import type { MenuItem, ThemeSettings, Category } from '@/lib/supabase';
+import { fetchPublicMenuItems, fetchPublicSettings, fetchPublicCategories, fetchPublicRestaurant, themeFromMap } from '@/lib/supabase';
+import type { MenuItem, ThemeSettings, Category, PublicRestaurant } from '@/lib/supabase';
 import { springPresets } from '@/lib/motion';
-
-const WHATSAPP_NUMBER = '966504440238';
 
 type Lang = 'ar' | 'en';
 type ViewMode = 'list' | 'grid';
@@ -15,12 +13,22 @@ const DEFAULT_THEME: ThemeSettings = {
   primary_color: '#E8622A', text_color: '#F0EBE3', border_color: '#2a2a2a',
 };
 
-const SOCIAL_LINKS = {
-  instagram: 'https://www.instagram.com/andco.sa',
-  tiktok: 'https://www.tiktok.com/@andco.sa',
-  maps: 'https://maps.app.goo.gl/HLhYHTcG1FjQvqiS9',
-  phone: 'tel:+966504440238',
-};
+/** Normalize a stored instagram value (@user or full URL) into a URL. */
+function instagramUrl(v: string): string {
+  if (/^https?:\/\//i.test(v)) return v;
+  return `https://www.instagram.com/${v.replace(/^@/, '')}`;
+}
+function tiktokUrl(v: string): string {
+  if (/^https?:\/\//i.test(v)) return v;
+  return `https://www.tiktok.com/@${v.replace(/^@/, '')}`;
+}
+function waNumber(v: string): string {
+  return v.replace(/[^\d]/g, '');
+}
+/** Only allow http(s) links from stored settings — blocks javascript:/data: URIs. */
+function safeUrl(v: string): string {
+  return /^https?:\/\//i.test(v) ? v : '';
+}
 
 export default function MenuPage() {
   const [items, setItems] = useState<MenuItem[]>([]);
@@ -29,6 +37,10 @@ export default function MenuPage() {
   const [lang, setLang] = useState<Lang>('ar');
   const [activeCategory, setActiveCategory] = useState<string>('');
   const [theme, setTheme] = useState<ThemeSettings>(DEFAULT_THEME);
+  const [settings, setSettings] = useState<Record<string, string>>({});
+  const [restaurant, setRestaurant] = useState<PublicRestaurant | null>(null);
+  const [coverFailed, setCoverFailed] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [search, setSearch] = useState('');
@@ -40,10 +52,14 @@ export default function MenuPage() {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([fetchPublicMenuItems(slug), fetchThemeSettings(slug), fetchPublicCategories(slug)])
-      .then(([menuItems, themeData, cats]) => {
+    setCoverFailed(false);
+    setLogoFailed(false);
+    Promise.all([fetchPublicMenuItems(slug), fetchPublicSettings(slug), fetchPublicCategories(slug), fetchPublicRestaurant(slug)])
+      .then(([menuItems, settingsMap, cats, rest]) => {
         setItems(menuItems);
-        setTheme(themeData);
+        setSettings(settingsMap);
+        setTheme(themeFromMap(settingsMap));
+        setRestaurant(rest);
         setCategories(cats);
         if (cats.length > 0) setActiveCategory(cats[0].key);
       }).catch(console.error).finally(() => setLoading(false));
@@ -72,6 +88,18 @@ export default function MenuPage() {
     : items.filter(i => i.category === activeCategory);
   const isRtl = lang === 'ar';
 
+  // Per-restaurant branding, all from this restaurant's own settings
+  const displayName = restaurant ? (isRtl ? restaurant.name_ar : restaurant.name_en) : '';
+  const description = settings['description'] || '';
+  const logoUrl = settings['logo_url'] || '';
+  const coverUrl = settings['cover_url'] || '';
+  const phone = settings['contact_phone'] || '';
+  const whatsapp = settings['contact_whatsapp'] || '';
+  const instagram = settings['contact_instagram'] || '';
+  const tiktok = settings['contact_tiktok'] || '';
+  const maps = safeUrl(settings['contact_maps'] || '');
+  const hasSocials = !!(maps || tiktok || instagram || phone);
+
   return (
     <div dir={isRtl ? 'rtl' : 'ltr'}
       style={{ backgroundColor: theme.bg_color, color: theme.text_color, minHeight: '100vh',
@@ -79,8 +107,15 @@ export default function MenuPage() {
 
       {/* ===== COVER IMAGE ===== */}
       <div className="relative w-full overflow-hidden" style={{ height: '220px' }}>
-        <img src="/images/cover.jpg" alt="& Co. Coffee Shop"
-          className="w-full h-full object-cover" />
+        {coverUrl && !coverFailed ? (
+          <img src={coverUrl} alt={displayName}
+            className="w-full h-full object-cover"
+            onError={() => setCoverFailed(true)} />
+        ) : (
+          <div className="w-full h-full" style={{
+            background: `linear-gradient(135deg, ${theme.card_color} 0%, ${theme.bg_color} 60%, ${theme.primary_color}22 100%)`
+          }} />
+        )}
         <div className="absolute inset-0" style={{
           background: `linear-gradient(to bottom, transparent 40%, ${theme.bg_color} 100%)`
         }} />
@@ -112,22 +147,32 @@ export default function MenuPage() {
 
       {/* ===== PROFILE SECTION ===== */}
       <div className="flex flex-col items-center -mt-12 pb-4 px-4 relative z-10">
-        <div className="w-20 h-20 rounded-full overflow-hidden mb-3"
-          style={{ border: `3px solid ${theme.primary_color}`, boxShadow: `0 0 20px ${theme.primary_color}55` }}>
-          <img src="/images/LOGO.png" alt="& Co."
-            className="w-full h-full object-cover"
-            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+        <div className="w-20 h-20 rounded-full overflow-hidden mb-3 flex items-center justify-center"
+          style={{ border: `3px solid ${theme.primary_color}`, boxShadow: `0 0 20px ${theme.primary_color}55`, backgroundColor: theme.card_color }}>
+          {logoUrl && !logoFailed ? (
+            <img src={logoUrl} alt={displayName}
+              className="w-full h-full object-cover"
+              onError={() => setLogoFailed(true)} />
+          ) : (
+            <span className="text-3xl font-black" style={{ color: theme.primary_color }}>
+              {displayName.charAt(0) || '·'}
+            </span>
+          )}
         </div>
         <h1 className="text-lg font-black tracking-widest uppercase" style={{ color: theme.text_color }}>
-          & Co. Coffee Shop
+          {displayName}
         </h1>
-        <p className="text-xs tracking-widest mt-0.5" style={{ color: theme.primary_color }}>
-          Coffee Shop & Pop Up
-        </p>
+        {description && (
+          <p className="text-xs tracking-widest mt-0.5" style={{ color: theme.primary_color }}>
+            {description}
+          </p>
+        )}
 
         {/* Social Icons */}
+        {hasSocials && (
         <div className="flex items-center gap-4 mt-4">
-          <a href={SOCIAL_LINKS.maps} target="_blank" rel="noopener noreferrer"
+          {maps && (
+          <a href={maps} target="_blank" rel="noopener noreferrer"
             className="flex flex-col items-center gap-1 group">
             <div className="w-10 h-10 rounded-full flex items-center justify-center transition-all group-hover:scale-110"
               style={{ backgroundColor: theme.card_color, border: `1px solid ${theme.border_color}` }}>
@@ -137,8 +182,10 @@ export default function MenuPage() {
             </div>
             <span className="text-[10px]" style={{ color: theme.text_color + '88' }}>{lang === 'ar' ? 'الموقع' : 'Maps'}</span>
           </a>
+          )}
 
-          <a href={SOCIAL_LINKS.tiktok} target="_blank" rel="noopener noreferrer"
+          {tiktok && (
+          <a href={tiktokUrl(tiktok)} target="_blank" rel="noopener noreferrer"
             className="flex flex-col items-center gap-1 group">
             <div className="w-10 h-10 rounded-full flex items-center justify-center transition-all group-hover:scale-110"
               style={{ backgroundColor: theme.card_color, border: `1px solid ${theme.border_color}` }}>
@@ -148,8 +195,10 @@ export default function MenuPage() {
             </div>
             <span className="text-[10px]" style={{ color: theme.text_color + '88' }}>TikTok</span>
           </a>
+          )}
 
-          <a href={SOCIAL_LINKS.instagram} target="_blank" rel="noopener noreferrer"
+          {instagram && (
+          <a href={instagramUrl(instagram)} target="_blank" rel="noopener noreferrer"
             className="flex flex-col items-center gap-1 group">
             <div className="w-10 h-10 rounded-full flex items-center justify-center transition-all group-hover:scale-110"
               style={{ backgroundColor: theme.card_color, border: `1px solid ${theme.border_color}` }}>
@@ -166,8 +215,10 @@ export default function MenuPage() {
             </div>
             <span className="text-[10px]" style={{ color: theme.text_color + '88' }}>Instagram</span>
           </a>
+          )}
 
-          <a href={SOCIAL_LINKS.phone}
+          {phone && (
+          <a href={`tel:${phone}`}
             className="flex flex-col items-center gap-1 group">
             <div className="w-10 h-10 rounded-full flex items-center justify-center transition-all group-hover:scale-110"
               style={{ backgroundColor: theme.card_color, border: `1px solid ${theme.border_color}` }}>
@@ -177,7 +228,9 @@ export default function MenuPage() {
             </div>
             <span className="text-[10px]" style={{ color: theme.text_color + '88' }}>{lang === 'ar' ? 'اتصل' : 'Call'}</span>
           </a>
+          )}
         </div>
+        )}
       </div>
 
       {/* ===== CATEGORY TABS ===== */}
@@ -416,8 +469,9 @@ export default function MenuPage() {
         </AnimatePresence>
 
         {/* WhatsApp */}
+        {whatsapp && (
         <motion.a
-          href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(isRtl ? 'مرحباً، أود الاستفسار عن المينيو 🍵' : 'Hello, I would like to inquire about the menu 🍵')}`}
+          href={`https://wa.me/${waNumber(whatsapp)}?text=${encodeURIComponent(isRtl ? 'مرحباً، أود الاستفسار عن المينيو 🍵' : 'Hello, I would like to inquire about the menu 🍵')}`}
           target="_blank" rel="noopener noreferrer"
           initial={{ opacity: 0, scale: 0.7 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -430,12 +484,13 @@ export default function MenuPage() {
             <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
           </svg>
         </motion.a>
+        )}
       </div>
 
       {/* ===== FOOTER ===== */}
       <footer className="py-6 text-center" style={{ borderTop: `1px solid ${theme.border_color}` }}>
         <p className="text-xs font-bold tracking-widest uppercase" style={{ color: theme.primary_color }}>
-          & Co. Coffee Shop & Pop Up
+          {displayName}{description ? ` — ${description}` : ''}
         </p>
         <p className="text-[11px] mt-1" style={{ color: theme.text_color + '55' }}>
           {lang === 'ar' ? 'جميع الأسعار بالريال السعودي' : 'All prices in Saudi Riyal'}

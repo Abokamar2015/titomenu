@@ -309,6 +309,56 @@ function rowsToTheme(rows: { key: string; value: string }[]): ThemeSettings {
   };
 }
 
+// ===== PUBLIC RESTAURANT INFO & BRANDING =====
+
+export interface PublicRestaurant {
+  id: string;
+  slug: string;
+  name_ar: string;
+  name_en: string;
+}
+
+/** Public (slug-scoped) restaurant basic info. Returns null on failure. */
+export async function fetchPublicRestaurant(
+  slug?: string | null,
+): Promise<PublicRestaurant | null> {
+  try {
+    return await apiFetch<PublicRestaurant>(
+      `/public/${encodeURIComponent(normalizeSlug(slug))}/restaurant`,
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** Public (slug-scoped) raw settings map: theme colors, branding, contacts. */
+export async function fetchPublicSettings(
+  slug?: string | null,
+): Promise<Record<string, string>> {
+  try {
+    const rows = await apiFetch<{ key: string; value: string }[]>(
+      `/public/${encodeURIComponent(normalizeSlug(slug))}/settings`,
+    );
+    const map: Record<string, string> = {};
+    rows.forEach((row) => {
+      map[row.key] = row.value;
+    });
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+export function themeFromMap(map: Record<string, string>): ThemeSettings {
+  return {
+    bg_color: map["bg_color"] || DEFAULT_THEME.bg_color,
+    card_color: map["card_color"] || DEFAULT_THEME.card_color,
+    primary_color: map["primary_color"] || DEFAULT_THEME.primary_color,
+    text_color: map["text_color"] || DEFAULT_THEME.text_color,
+    border_color: map["border_color"] || DEFAULT_THEME.border_color,
+  };
+}
+
 /** Public (slug-scoped) theme settings — used by the menu pages. */
 export async function fetchThemeSettings(
   slug?: string | null,

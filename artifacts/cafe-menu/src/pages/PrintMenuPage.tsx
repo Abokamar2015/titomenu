@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'wouter';
-import { fetchPublicMenuItems, fetchPublicCategories, type MenuItem, type Category } from '@/lib/supabase';
+import { fetchPublicMenuItems, fetchPublicCategories, fetchPublicSettings, fetchPublicRestaurant, type MenuItem, type Category, type PublicRestaurant } from '@/lib/supabase';
 import cartBg from '@assets/WhatsApp_Image_2025-12-05_at_18.18.50_61f8547f_1780513767603.jpg';
-
-const LOGO = `${import.meta.env.BASE_URL}images/LOGO.png`;
 
 function isDrinkCategory(key: string, nameAr?: string) {
   const k = key.toLowerCase();
@@ -18,15 +16,19 @@ export default function PrintMenuPage() {
   const [items, setItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [settings, setSettings] = useState<Record<string, string>>({});
+  const [restaurant, setRestaurant] = useState<PublicRestaurant | null>(null);
   const params = useParams<{ slug?: string }>();
   const slug = params.slug;
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([fetchPublicMenuItems(slug), fetchPublicCategories(slug)])
-      .then(([menuItems, cats]) => {
+    Promise.all([fetchPublicMenuItems(slug), fetchPublicCategories(slug), fetchPublicSettings(slug), fetchPublicRestaurant(slug)])
+      .then(([menuItems, cats, settingsMap, rest]) => {
         setItems(menuItems);
         setCategories(cats);
+        setSettings(settingsMap);
+        setRestaurant(rest);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -329,9 +331,11 @@ export default function PrintMenuPage() {
             ) : (
               <>
                 <div className="header">
-                  <div className="logo-circle"><img src={LOGO} alt="& Co." /></div>
-                  <div className="brand"><span className="amp">&amp;</span> Co.</div>
-                  <div className="tagline">Coffee Shop &amp; Pop Up</div>
+                  {settings['logo_url'] && (
+                    <div className="logo-circle"><img src={settings['logo_url']} alt={restaurant?.name_en ?? ''} /></div>
+                  )}
+                  <div className="brand">{restaurant?.name_en ?? ''}</div>
+                  {settings['description'] && <div className="tagline">{settings['description']}</div>}
                 </div>
 
                 <div className="title-band">
@@ -377,8 +381,8 @@ export default function PrintMenuPage() {
                   <div className="orn">
                     <span className="line" /><span className="dot" /><span className="line r" />
                   </div>
-                  <div className="name">&amp; Co. Coffee Shop</div>
-                  <div className="sub">قهوة متنقلة · Pop Up</div>
+                  <div className="name">{restaurant?.name_en ?? ''}</div>
+                  <div className="sub">{restaurant?.name_ar ?? ''}</div>
                 </div>
               </>
             )}
